@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}SALVAMED{% endblock %}</title>
+  <link rel="icon" href="/static/icono.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/estilos.css">
+</head>
+<body>
+  <header class="encabezado">
+    <div class="contenedor encabezado__fila">
+      <a class="marca" href="/">
+        <img src="/static/icono.svg" alt="" width="36" height="36">
+        <span>
+          <strong>SALVAMED</strong>
+          <small>Centro Médico El Roble</small>
+        </span>
+      </a>
+      <nav class="pestanas" aria-label="Secciones">
+        <a href="/" {% if pestana == "salidas" %}aria-current="page"{% endif %}>Registrar salida</a>
+        <a href="/ingresos" {% if pestana == "ingresos" %}aria-current="page"{% endif %}>Registrar ingreso</a>
+        <a href="/medicamentos" {% if pestana == "inventario" %}aria-current="page"{% endif %}>Medicamentos</a>
+        <a href="/medicamentos/nuevo" {% if pestana == "nuevo" %}aria-current="page"{% endif %}>Agregar medicamento</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="contenedor">
+    {% block contenido %}{% endblock %}
+  </main>
+
+  <script>
+    document.querySelectorAll("form[data-confirmar]").forEach(function (formulario) {
+      formulario.addEventListener("submit", function (evento) {
+        if (!window.confirm(formulario.dataset.confirmar)) evento.preventDefault();
+      });
+    });
+
+    document.querySelectorAll(".flotante").forEach(function (aviso) {
+      var temporizador;
+      function cerrar() {
+        aviso.classList.add("flotante--saliendo");
+        setTimeout(function () { aviso.remove(); }, 300);
+      }
+      function programar() {
+        clearTimeout(temporizador);
+        temporizador = setTimeout(cerrar, 6000);
+      }
+      aviso.addEventListener("mouseenter", function () { clearTimeout(temporizador); });
+      aviso.addEventListener("mouseleave", programar);
+      aviso.addEventListener("focusin", function () { clearTimeout(temporizador); });
+      aviso.querySelector(".flotante__cerrar").addEventListener("click", cerrar);
+      programar();
+    });
+
+    var direccion = new URL(window.location.href);
+    if (direccion.searchParams.has("hecho")) {
+      direccion.searchParams.delete("hecho");
+      window.history.replaceState(null, "", direccion.pathname + direccion.search + direccion.hash);
+    }
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

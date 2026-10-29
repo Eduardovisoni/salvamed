@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% block titulo %}{{ m.nombre }} · SALVAMED{% endblock %}
+{% block contenido %}
+{% set p = plan %}
+{% set u = m.unidad %}
+{% set c = consumo %}
+<div class="titulo-pagina">
+  <div>
+    <a class="volver" href="/medicamentos">← Medicamentos</a>
+    <h1>{{ m.nombre }} <span class="estado estado--{{ estado.clave }}">{{ estado.etiqueta }}</span></h1>
+    <p class="sutil">Se cuenta en {{ u }} · plan con {{ m.nivel_servicio | corto }} % de probabilidad de servicio</p>
+  </div>
+  <div class="acciones acciones--arriba">
+    <a class="boton boton--primario" href="/?medicamento={{ m.id }}">Registrar salida</a>
+    <a class="boton" href="/ingresos?medicamento={{ m.id }}">Registrar ingreso</a>
+    <a class="boton" href="/medicamentos/{{ m.id }}/editar">Editar datos</a>
+    <form method="post" action="/medicamentos/{{ m.id }}/eliminar" data-confirmar="¿Eliminar {{ m.nombre }} del inventario? No se puede deshacer.">
+      <button class="boton boton--peligro" type="submit">Eliminar</button>
+    </form>
+  </div>
+</div>
+
+{% if guardado %}
+<div class="aviso aviso--exito" role="status">Datos guardados. El plan se volvió a calcular.</div>
+{% endif %}
+
+<section class="panel panel--estado panel--{{ estado.clave }}">
+  <p class="panel__mensaje">
+    {% if estado.clave == "pedir" %}
+      Hay que pedir <strong>{{ p.Q | entero }} {{ u }}</strong> ahora: la existencia ({{ m.existencia | entero }}) ya llegó al punto de reorden ({{ p.R | entero }}).
+      {% if estado.dias_de_cobertura < m.tiempo_entrega %}
+      <br>Con el consumo promedio alcanza para {{ estado.dias_de_cobertura | num(1) }} días y el proveedor tarda {{ m.tiempo_entrega | corto }} días: lo más probable es que se acabe antes de que llegue el pedido.
+      {% endif %}
+    {% elif estado.clave == "pronto" %}
+      En unos <strong>{{ estado.dias_para_reorden | num(1) }} días</strong> llegará al punto de reorden ({{ p.R | entero }} {{ u }}). Conviene preparar el pedido de {{ p.Q | entero }} {{ u }}.
+    {% else %}
+      Faltan unos <strong>{{ estado.dias_para_reorden | num(1) }} días</strong> para llegar al punto de reorden ({{ p.R | entero }} {{ u }}).
+    {% endif %}
+  </p>
+
+  {% set escala = [p.R + p.Q, m.existencia] | max %}
+  <div class="medidor" role="img" aria-label="Existencia {{ m.existencia }} de un máximo de {{ escala | entero }}; punto de reorden {{ p.R | entero }}; inventario de seguridad {{ p.IS | entero }}">
+    <div class="medidor__barra">
+      <div class="medidor__relleno" style="width: {{ (m.existencia / escala * 100) | round(2) }}%"></div>
+      <div class="medidor__marca medidor__marca--is" style="left: {{ (p.IS / escala * 100) | round(2) }}%"><span>IS {{ p.IS | entero }}</span></div>
+      <div class="medidor__marca medidor__marca--r" style="left: {{ (p.R / escala * 100) | round(2) }}%"><span>R {{ p.R | entero }}</span></div>
+    </div>
+    <div class="medidor__escala"><span>0</span><span>R + Q = {{ (p.R + p.Q) | entero }}</span></div>
+  </div>
+
+  <dl class="cifras">
+    <div><dt>Existencia</dt><dd>{{ m.existencia | entero }}</dd></div>
+    <div><dt>Punto de reorden</dt><dd>{{ p.R | entero }}</dd></div>
+    <div><dt>Cantidad a pedir</dt><dd>{{ p.Q | entero }}</dd></div>
+    <div><dt>Alcanza para</dt><dd>{{ estado.dias_de_cobertura | num(1) }} días</dd></div>
+  </dl>
+</section>
+
+<section class="panel">
+  <h2>Consumo diario de los últimos {{ c.dias }} {% if c.dias == 1 %}día{% else %}días{% endif %}</h2>
+  <p class="sutil consumo__explicacion">
+    {% if c.del_historial %}
+    μ<sub>D</sub> = <strong>{{ c.mu_d | num }}</strong> y σ<sub>D</sub> = <strong>{{ c.sigma_d | num }}</strong>:
+    el promedio y la desviación estándar de lo que salió cada día (los días sin salidas cuentan como 0).
+    Cada salida nueva los vuelve a calcular.
+    {% else %}
+    Todavía hay {{ c.dias }} {% if c.dias == 1 %}día{% else %}días{% endif %} de historial y se necesitan 7.
+    Mientras tanto el plan usa los valores estimados: μ<sub>D</sub> = {{ c.mu_d | corto }} y σ<sub>D</sub> = {{ c.sigma_d | corto }}.
+    {% endif %}
+  </p>
+  {% set g = grafica %}
+  <figure class="grafica">
+    <svg viewBox="0 0 {{ g.ancho }} {{ g.alto }}" preserveAspectRatio="none" role="img"
+      aria-label="Salidas por día desde el {{ g.primer_dia.strftime('%d/%m') }} hasta hoy; promedio {{ c.mu_d | num(1) }} por día">
+      <rect class="grafica__banda" x="0" y="{{ g.y_arriba }}" width="{{ g.ancho }}" height="{{ (g.y_abajo - g.y_arriba) | round(2) }}"></rect>
+      {% for b in g.barras %}
+      <rect class="grafica__barra" x="{{ b.x }}" y="{{ b.y }}" width="{{ b.ancho }}" height="{{ b.alto }}"><title>{{ b.etiqueta }} {{ u }}</title></rect>
+      {% endfor %}
+      <line class="grafica__media" x1="0" x2="{{ g.ancho }}" y1="{{ g.y_mu }}" y2="{{ g.y_mu }}"></line>
+    </svg>
+    <figcaption class="grafica__leyenda">
+      <span><i class="grafica__muestra grafica__muestra--barra"></i>Salidas del día</span>
+      <span><i class="grafica__muestra grafica__muestra--media"></i>μD {{ c.mu_d | num(1) }}</span>
+      <span><i class="grafica__muestra grafica__muestra--banda"></i>μD ± σD</span>
+      <span class="grafica__fechas">{{ g.primer_dia.strftime('%d/%m') }} → hoy</span>
+    </figcaption>
+  </figure>
+</section>
+
+<div class="columnas">
+  <section class="panel">
+    <h2>Datos</h2>
+    <table class="datos">
+      <tbody>
+        <tr><th>Días hábiles por año</th><td>{{ m.dias_habiles }}</td></tr>
+        <tr><th>μ<sub>D</sub> <span class="sutil">consumo por día, {% if c.del_historial %}de las salidas{% else %}estimado{% endif %}</span></th><td>{{ c.mu_d | corto }}</td></tr>
+        <tr><th>σ<sub>D</sub> <span class="sutil">desviación por día, {% if c.del_historial %}de las salidas{% else %}estimada{% endif %}</span></th><td>{{ c.sigma_d | corto }}</td></tr>
+        <tr><th>L <span class="sutil">tiempo de entrega</span></th><td>{{ m.tiempo_entrega | corto }} días</td></tr>
+        <tr><th>S <span class="sutil">costo por pedido</span></th><td>{{ m.costo_pedido | dinero }}</td></tr>
+        <tr><th>H <span class="sutil">costo de mantener al año</span></th><td>{{ m.costo_mantener | dinero }}</td></tr>
+        <tr><th>Z <span class="sutil">prob. {{ m.nivel_servicio | corto }} %</span></th><td>{{ p.Z | num(3) }}</td></tr>
+        <tr><th>D <span class="sutil">μD × días hábiles</span></th><td>{{ p.D | corto }}</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="panel">
+    <h2>h) Política del inventario</h2>
+    <ul class="politica">
+      <li>Deben pedirse <mark>{{ p.Q | entero }} {{ u }}</mark> cuando el inventario baje a <mark>{{ p.R | entero }} {{ u }}</mark>, para tener una probabilidad del <mark>{{ m.nivel_servicio | corto }} %</mark> de no quedarse sin {{ m.nombre }}.</li>
+      <li>Se harán unos <mark>{{ p.N | num(1) }} pedidos</mark> al año, con unos <mark>{{ p.T | entero }} días</mark> entre cada pedido.</li>
+      <li>El costo total del inventario es de <mark>{{ p.CT | dinero }}</mark> al año.</li>
+      <li>El inventario de seguridad es de <mark>{{ p.IS | entero }} {{ u }}</mark> y su costo de mantenimiento es de <mark>{{ p.H_IS | dinero }}</mark> al año.</li>
+    </ul>
+  </section>
+</div>
+
+<section class="panel">
+  <h2>Plan de inventario</h2>
+  <ol class="incisos">
+    <li>
+      <span class="inciso__letra">a)</span>
+      <div>
+        <h3>Cantidad económica de pedido</h3>
+        <p class="formula">Q = √(2DS / H) = √(2 × {{ p.D | corto }} × {{ m.costo_pedido | corto }} / {{ m.costo_mantener | corto }})</p>
+      </div>
+      <span class="resultado">{{ p.Q | num }}</span>
+    </li>
+    <li>
+      <span class="inciso__letra">b)</span>
+      <div>
+        <h3>Punto de reorden</h3>
+        <p class="formula">σL = √(L · σD²) = √({{ m.tiempo_entrega | corto }} × {{ c.sigma_d | corto }}²) = {{ p.sigma_L | num }}</p>
+        <p class="formula">R = μD · L + Z · σL = {{ c.mu_d | corto }} × {{ m.tiempo_entrega | corto }} + {{ p.Z | num(3) }} × {{ p.sigma_L | num }}</p>
+      </div>
+      <span class="resultado">{{ p.R | num }}</span>
+    </li>
+    <li>
+      <span class="inciso__letra">c)</span>
+      <div>
+        <h3>Número de pedidos por año</h3>
+        <p class="formula">N = D / Q = {{ p.D | corto }} / {{ p.Q | num }}</p>
+      </div>
+      <span class="resultado">{{ p.N | num }}</span>
+    </li>
+    <li>
+      <span class="inciso__letra">d)</span>
+      <div>
+        <h3>Tiempo de reabastecimiento</h3>
+        <p class="formula">T = Q / D × días hábiles = {{ p.Q | num }} / {{ p.D | corto }} × {{ m.dias_habiles }}</p>
+      </div>
+      <span class="resultado">{{ p.T | num }} días</span>
+    </li>
+    <li>
+      <span class="inciso__letra">e)</span>
+      <div>
+        <h3>Costo total del inventario</h3>
+        <p class="formula">CT = (D / Q) · S + (Q / 2) · H = ({{ p.D | corto }} / {{ p.Q | num }}) × {{ m.costo_pedido | corto }} + ({{ p.Q | num }} / 2) × {{ m.costo_mantener | corto }}</p>
+      </div>
+      <span class="resultado">{{ p.CT | dinero }}</span>
+    </li>
+    <li>
+      <span class="inciso__letra">f)</span>
+      <div>
+        <h3>Inventario de seguridad</h3>
+        <p class="formula">IS = R − L · μD = {{ p.R | num }} − {{ m.tiempo_entrega | corto }} × {{ c.mu_d | corto }}</p>
+        <p class="sutil">Unidades de más para protegerse de retrasos en la entrega o de aumentos inesperados del consumo.</p>
+      </div>
+      <span class="resultado">{{ p.IS | num }}</span>
+    </li>
+    <li>
+      <span class="inciso__letra">g)</span>
+      <div>
+        <h3>Costo de mantenimiento del inventario de seguridad</h3>
+        <p class="formula">H<sub>IS</sub> = H · IS = {{ m.costo_mantener | corto }} × {{ p.IS | num }}</p>
+      </div>
+      <span class="resultado">{{ p.H_IS | dinero }}</span>
+    </li>
+  </ol>
+</section>
+
+<section class="panel">
+  <h2>Historial de movimientos</h2>
+  {% with recientes = historial, ocultar_nombre = true %}{% include "_movimientos.html" %}{% endwith %}
+</section>
+{% endblock %}
