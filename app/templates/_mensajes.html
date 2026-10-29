@@ -1,0 +1,26 @@
+{% set estados_mensaje = {
+  "pendiente": "Por enviar",
+  "enviado": "Enviado",
+  "fallido": "Falló",
+  "simulado": "Transporte simulado (sin Telegram)",
+  "sin_destino": "Sin chat configurado",
+} %}
+{% if mensajes %}
+<ul class="mensajes">
+  {% for msj in mensajes %}
+  <li class="mensaje mensaje--{{ msj.estado }}">
+    <div class="mensaje__cabeza">
+      <span class="estado estado--{{ 'bien' if msj.estado == 'enviado' else 'pedir' if msj.estado in ('fallido', 'sin_destino') else 'pronto' }}">{{ estados_mensaje.get(msj.estado, msj.estado) }}</span>
+      <span class="sutil">{{ msj.creado | fecha }}{% if msj.chat_id %} · chat {{ msj.chat_id }}{% endif %} · intentos {{ msj.intentos }}{% if msj.enviado_en %} · enviado {{ msj.enviado_en | fecha }}{% endif %}</span>
+      {% if msj.estado == "fallido" %}
+      <form method="post" action="/mensajes/{{ msj.id }}/reintentar"><button class="boton boton--chico" type="submit">Reintentar</button></form>
+      {% endif %}
+    </div>
+    {% if msj.ultimo_error %}<p class="campo__error">{{ msj.ultimo_error }}</p>{% endif %}
+    <pre class="mensaje__texto">{{ msj.texto }}</pre>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="vacio">Sin avisos.</p>
+{% endif %}

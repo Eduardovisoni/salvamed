@@ -6,25 +6,41 @@
   <title>{% block titulo %}SALVAMED{% endblock %}</title>
   <link rel="icon" href="/static/icono.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/estilos.css">
+  {% block cabeza %}{% endblock %}
 </head>
-<body>
+<body class="{% block clase_cuerpo %}{% endblock %}">
+  {% set a = ajustes() %}
   <header class="encabezado">
     <div class="contenedor encabezado__fila">
       <a class="marca" href="/">
         <img src="/static/icono.svg" alt="" width="36" height="36">
         <span>
           <strong>SALVAMED</strong>
-          <small>Centro Médico El Roble</small>
+          <small>Farmacia · Centro Médico El Roble</small>
         </span>
       </a>
+      {% if pestana is defined %}
       <nav class="pestanas" aria-label="Secciones">
-        <a href="/" {% if pestana == "salidas" %}aria-current="page"{% endif %}>Registrar salida</a>
-        <a href="/ingresos" {% if pestana == "ingresos" %}aria-current="page"{% endif %}>Registrar ingreso</a>
-        <a href="/medicamentos" {% if pestana == "inventario" %}aria-current="page"{% endif %}>Medicamentos</a>
-        <a href="/medicamentos/nuevo" {% if pestana == "nuevo" %}aria-current="page"{% endif %}>Agregar medicamento</a>
+        <a href="/" {% if pestana == "venta" %}aria-current="page"{% endif %}>Venta</a>
+        <a href="/medicamentos" {% if pestana in ("inventario", "nuevo", "editar") %}aria-current="page"{% endif %}>Inventario</a>
+        <a href="/pedidos" {% if pestana == "pedidos" %}aria-current="page"{% endif %}>Pedidos</a>
+        <a href="/ventas" {% if pestana == "ventas" %}aria-current="page"{% endif %}>Dinero</a>
+        <a class="pestanas__sim" href="/simulacion" {% if pestana == "simulacion" %}aria-current="page"{% endif %}>Simulación</a>
+        <a href="/configuracion" {% if pestana == "configuracion" %}aria-current="page"{% endif %}>Configuración</a>
+        {% if a.clave %}
+        <form method="post" action="/salir" class="pestanas__salir"><button type="submit">Salir</button></form>
+        {% endif %}
       </nav>
+      {% endif %}
     </div>
   </header>
+  {% if not a.clave %}
+  <div class="franja franja--aviso">
+    <div class="contenedor">
+      {% if a.en_linea %}Sin <code>SALVAMED_CLAVE</code>: la app en línea está en solo lectura.{% else %}Modo local sin clave: cualquiera con acceso a esta computadora puede usar la app.{% endif %}
+    </div>
+  </div>
+  {% endif %}
 
   <main class="contenedor">
     {% block contenido %}{% endblock %}
@@ -36,29 +52,26 @@
         if (!window.confirm(formulario.dataset.confirmar)) evento.preventDefault();
       });
     });
-
+    document.querySelectorAll("form[data-una-vez]").forEach(function (formulario) {
+      formulario.addEventListener("submit", function (evento) {
+        if (formulario.dataset.enviado) { evento.preventDefault(); return; }
+        formulario.dataset.enviado = "1";
+        formulario.querySelectorAll("button[type=submit]").forEach(function (b) { b.disabled = true; });
+      });
+    });
     document.querySelectorAll(".flotante").forEach(function (aviso) {
       var temporizador;
       function cerrar() {
         aviso.classList.add("flotante--saliendo");
         setTimeout(function () { aviso.remove(); }, 300);
       }
-      function programar() {
-        clearTimeout(temporizador);
-        temporizador = setTimeout(cerrar, 6000);
-      }
+      function programar() { clearTimeout(temporizador); temporizador = setTimeout(cerrar, 9000); }
       aviso.addEventListener("mouseenter", function () { clearTimeout(temporizador); });
       aviso.addEventListener("mouseleave", programar);
-      aviso.addEventListener("focusin", function () { clearTimeout(temporizador); });
-      aviso.querySelector(".flotante__cerrar").addEventListener("click", cerrar);
+      var boton = aviso.querySelector(".flotante__cerrar");
+      if (boton) boton.addEventListener("click", cerrar);
       programar();
     });
-
-    var direccion = new URL(window.location.href);
-    if (direccion.searchParams.has("hecho")) {
-      direccion.searchParams.delete("hecho");
-      window.history.replaceState(null, "", direccion.pathname + direccion.search + direccion.hash);
-    }
   </script>
   {% block scripts %}{% endblock %}
 </body>

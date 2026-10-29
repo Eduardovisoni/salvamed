@@ -1,13 +1,20 @@
 {% extends "base.html" %}
-{% block titulo %}Medicamentos · SALVAMED{% endblock %}
+{% block titulo %}Inventario · SALVAMED{% endblock %}
 {% block contenido %}
 <div class="titulo-pagina">
   <div>
-    <h1>Medicamentos</h1>
-    <p class="sutil">El plan de cada medicamento: cuándo pedir (R) y cuánto pedir (Q). μD y σD salen de lo que salió en los últimos 30 días.</p>
+    <h1>Inventario</h1>
+    <p class="sutil">Cuándo pedir (R) y cuánto pedir (Q) de cada medicamento. μD y σD salen de las ventas de los últimos {{ cfg.ventana_dias }} días completos.</p>
   </div>
-  <a class="boton boton--primario" href="/medicamentos/nuevo">+ Agregar medicamento</a>
+  <div class="acciones">
+    <a class="boton" href="/importar">Importar</a>
+    <a class="boton boton--primario" href="/medicamentos/nuevo">+ Agregar medicamento</a>
+  </div>
 </div>
+
+{% if request.query_params.get("mensaje") %}
+<div class="aviso aviso--exito" role="status">{{ request.query_params.get("mensaje") }}</div>
+{% endif %}
 
 <div class="herramientas">
   <input id="buscar" class="campo__entrada buscador" type="search" placeholder="Buscar medicamento…" aria-label="Buscar medicamento">
@@ -16,6 +23,7 @@
     <button type="button" class="chip" data-filtro="pedir" aria-pressed="false">Pedir ya</button>
     <button type="button" class="chip" data-filtro="pronto" aria-pressed="false">Pedir pronto</button>
     <button type="button" class="chip" data-filtro="bien" aria-pressed="false">Abastecidos</button>
+    <button type="button" class="chip" data-filtro="pendiente" aria-pressed="false">Datos pendientes</button>
   </div>
 </div>
 
@@ -26,55 +34,72 @@
       <tr>
         <th>Medicamento</th>
         <th class="num">Existencia</th>
-        <th class="num" title="Promedio de las salidas por día en los últimos 30 días">Consumo/día <span class="sin-mayus">μD</span></th>
-        <th class="num" title="Punto de reorden: R = μD·L + Z·σL">Punto de reorden (R)</th>
-        <th class="num" title="Cantidad económica de pedido: Q = √(2DS/H)">Cantidad a pedir (Q)</th>
-        <th class="num" title="Inventario de seguridad: IS = R − L·μD">Inv. de seguridad</th>
-        <th class="num">Alcanza para</th>
+        <th class="num" title="Pedidos realizados que faltan por recibir">En camino</th>
+        <th class="num" title="Promedio de ventas por día completo">Consumo/día <span class="sin-mayus">μD</span></th>
+        <th class="num" title="R = μD·L + Z·σL">Punto de reorden (R)</th>
+        <th class="num" title="IS = Z·σL">Inv. de seguridad</th>
+        <th class="num" title="EOQ redondeada a paquetes completos">Pedir</th>
         <th>Estado</th>
         <th><span class="oculto">Acciones</span></th>
       </tr>
     </thead>
     <tbody>
-      {% for f in filas %}
-      <tr data-estado="{{ f.estado.clave }}" data-nombre="{{ f.m.nombre | lower }}">
+      {% for e in filas %}
+      <tr data-estado="{{ e.estado.clave }}" data-nombre="{{ e.m.nombre_completo | lower }} {{ e.m.sku | lower }}">
         <td>
-          <a class="enlace-fila" href="/medicamentos/{{ f.m.id }}">{{ f.m.nombre }}</a>
-          <span class="sutil bloque">{{ f.m.unidad }}</span>
+          <a class="enlace-fila" href="/medicamentos/{{ e.m.id }}">{{ e.m.nombre }}</a>
+          <span class="sutil bloque">{{ e.m.presentacion }} · {{ e.m.unidad }}</span>
         </td>
-        <td class="num"><strong>{{ f.m.existencia | entero }}</strong></td>
+        <td class="num"><strong>{{ e.existencia | entero }}</strong></td>
+        <td class="num">{% if e.en_camino %}{{ e.en_camino | entero }}{% else %}<span class="sutil">—</span>{% endif %}</td>
         <td class="num">
-          {{ f.consumo.mu_d | num(1) }}
-          {% if f.consumo.del_historial %}
-          <span class="sutil bloque">σD {{ f.consumo.sigma_d | num(1) }}</span>
+          {% if e.consumo.disponible %}
+          {{ e.consumo.mu_d | num(1) }}
+          <span class="sutil bloque">σD {{ e.consumo.sigma_d | num(1) }} · {% if e.consumo.base == "semanal" %}base semanal{% else %}{{ e.consumo.dias }} d{% if e.consumo.calidad == "provisional" %}, provisional{% endif %}{% endif %}</span>
           {% else %}
-          <span class="sutil bloque" title="Todavía no hay 7 días de salidas">estimado</span>
+          <span class="sutil">pendiente</span>
           {% endif %}
         </td>
-        <td class="num">{{ f.plan.R | entero }}</td>
-        <td class="num">{{ f.plan.Q | entero }}</td>
-        <td class="num">{{ f.plan.IS | entero }}</td>
-        <td class="num">{{ f.estado.dias_de_cobertura | num(1) }} días</td>
+        <td class="num">{% if e.plan %}{{ e.plan.R | num(1) }}{% else %}<span class="sutil">—</span>{% endif %}</td>
+        <td class="num">{% if e.plan %}{{ e.plan.IS | num(1) }}{% else %}<span class="sutil">—</span>{% endif %}</td>
+        <td class="num">{% if e.plan and e.sugerida %}{{ e.sugerida | entero }}<span class="sutil bloque">EOQ {{ e.plan.Q | num(1) }}</span>{% else %}<span class="sutil">—</span>{% endif %}</td>
         <td>
-          <span class="estado estado--{{ f.estado.clave }}">{{ f.estado.etiqueta }}</span>
-          {% if f.estado.clave == "pedir" %}
-          <span class="sutil bloque">Pedir {{ f.plan.Q | entero }} {{ f.m.unidad }}</span>
-          {% else %}
-          <span class="sutil bloque">Reorden en {{ f.estado.dias_para_reorden | num(1) }} días</span>
+          <span class="estado estado--{{ e.estado.clave }}">{{ e.estado.etiqueta }}</span>
+          {% if e.pedido_abierto %}
+          <a class="sutil bloque" href="/pedidos/{{ e.pedido_abierto.id }}">Pedido #{{ e.pedido_abierto.id }} · {{ estados_pedido[e.pedido_abierto.estado] }}</a>
+          {% elif e.estado.clave == "pendiente" %}
+          <span class="sutil bloque">{{ e.pendientes[0] }}</span>
+          {% elif e.estado.dias_para_reorden is not none and e.estado.clave != "pedir" %}
+          <span class="sutil bloque">Reorden en {{ e.estado.dias_para_reorden | num(1) }} días</span>
           {% endif %}
+          {% if e.riesgo_agotamiento %}<span class="sutil bloque texto-pedir">Riesgo de agotarse antes de la entrega</span>{% endif %}
         </td>
-        <td><a class="boton boton--chico" href="/?medicamento={{ f.m.id }}">Salida</a></td>
+        <td><a class="boton boton--chico" href="/?agregar={{ e.m.id }}">Vender</a></td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
   <p id="sin-resultados" class="vacio" hidden>Ningún medicamento coincide con la búsqueda.</p>
 </div>
+<p class="sutil nota-pie">
+  La posición de inventario (existencia + en camino) se compara con R. Un aviso sin confirmar no cuenta como mercancía comprada.
+  Con pocos días de ventas la estimación es provisional; las ventas que no se hicieron por falta de existencia no quedan registradas.
+</p>
 {% else %}
 <div class="vacio">
-  <p>Todavía no hay medicamentos registrados.</p>
-  <a class="boton boton--primario" href="/medicamentos/nuevo">Agregar el primero</a>
+  <p>Todavía no hay medicamentos en operación.</p>
+  <div class="acciones" style="justify-content:center">
+    <a class="boton boton--primario" href="/medicamentos/nuevo">Agregar el primero</a>
+    <a class="boton" href="/configuracion#datos">Cargar la demostración</a>
+  </div>
 </div>
+{% endif %}
+
+{% if inactivos %}
+<section class="panel" style="margin-top:18px">
+  <h2>Desactivados</h2>
+  <p class="sutil">{% for m in inactivos %}<a href="/medicamentos/{{ m.id }}">{{ m.nombre_completo }}</a>{% if not loop.last %} · {% endif %}{% endfor %}</p>
+</section>
 {% endif %}
 {% endblock %}
 
@@ -85,14 +110,13 @@
     var chips = Array.prototype.slice.call(document.querySelectorAll(".chip"));
     var buscar = document.getElementById("buscar");
     var sinResultados = document.getElementById("sin-resultados");
-    var filtros = ["todos", "pedir", "pronto", "bien"];
+    var filtros = ["todos", "pedir", "pronto", "bien", "pendiente"];
     var filtro = new URLSearchParams(window.location.search).get("estado");
     if (filtros.indexOf(filtro) === -1) filtro = "todos";
 
     function quitarAcentos(texto) {
       return texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
     }
-
     function aplicar() {
       var texto = quitarAcentos(buscar.value.trim());
       var visibles = 0;
@@ -107,12 +131,8 @@
         chip.setAttribute("aria-pressed", chip.dataset.filtro === filtro ? "true" : "false");
       });
     }
-
     document.querySelectorAll("[data-filtro]").forEach(function (boton) {
-      boton.addEventListener("click", function () {
-        filtro = boton.dataset.filtro;
-        aplicar();
-      });
+      boton.addEventListener("click", function () { filtro = boton.dataset.filtro; aplicar(); });
     });
     buscar.addEventListener("input", aplicar);
     aplicar();

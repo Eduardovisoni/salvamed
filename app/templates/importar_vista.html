@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block titulo %}Vista previa · SALVAMED{% endblock %}
+{% block contenido %}
+{% set catalogo = vista.catalogo %}
+{% set historial = vista.historial %}
+<div class="titulo-pagina">
+  <div>
+    <a class="volver" href="/importar">← Importar</a>
+    <h1>{{ imp.archivo }}
+      <span class="estado {{ 'estado--bien' if imp.estado == 'aplicada' else 'estado--pronto' if imp.estado == 'vista_previa' else '' }}">{{ {"vista_previa": "Vista previa", "aplicada": "Aplicada", "descartada": "Descartada"}[imp.estado] }}</span>
+    </h1>
+    <p class="sutil">{% for nota in vista.avisos %}{{ nota }} {% endfor %}</p>
+  </div>
+</div>
+
+{% if error %}<div class="aviso aviso--error" role="alert">{{ error }}</div>{% endif %}
+{% if imp.estado == "aplicada" %}
+<div class="aviso aviso--exito" role="status">
+  Aplicada el {{ imp.aplicado_en | fecha }}: {{ imp.resumen.creados }} medicamentos nuevos, {{ imp.resumen.actualizados }} actualizados,
+  {{ imp.resumen.ajustes }} ajustes de existencia, {{ imp.resumen.semanas }} semanas y {{ imp.resumen.dias }} días de historia,
+  {{ imp.resumen.dias_omitidos }} días omitidos (repetidos o ya registrados), {{ imp.resumen.configuracion }} parámetros, {{ imp.resumen.errores }} filas con error sin importar.
+</div>
+{% endif %}
+
+{% set creados = catalogo | selectattr("accion", "equalto", "crear") | list | length %}
+{% set actualizados = catalogo | selectattr("accion", "equalto", "actualizar") | list | length %}
+{% set con_error = (catalogo | selectattr("accion", "equalto", "error") | list | length) + (historial | selectattr("accion", "equalto", "error") | list | length) %}
+<section class="resumen" aria-label="Resumen">
+  <div class="tarjeta tarjeta--bien"><span class="tarjeta__numero">{{ creados }}</span><span class="tarjeta__texto">Medicamentos nuevos</span><span class="tarjeta__nota">Su existencia entra como apertura</span></div>
+  <div class="tarjeta tarjeta--costo"><span class="tarjeta__numero">{{ actualizados }}</span><span class="tarjeta__texto">Ya existen</span><span class="tarjeta__nota">Se actualiza el catálogo, no la existencia</span></div>
+  <div class="tarjeta tarjeta--pronto"><span class="tarjeta__numero">{{ historial | length }}</span><span class="tarjeta__texto">Días de historia</span><span class="tarjeta__nota">No mueven existencias</span></div>
+  <div class="tarjeta tarjeta--pedir"><span class="tarjeta__numero">{{ con_error }}</span><span class="tarjeta__texto">Filas con error</span><span class="tarjeta__nota">No se importan</span></div>
+</section>
+
+{% if imp.estado == "vista_previa" %}
+<form class="panel" method="post" action="/importar/{{ imp.id }}/mapeo">
+  <h2>Mapeo de columnas</h2>
+  {% for hoja in hojas %}{% set indice = loop.index0 %}
+  {% if hoja.tipo in ("catalogo", "historial") %}
+  <h3>{{ hoja.nombre }} <span class="sutil">· {{ {"catalogo": "catálogo y apertura", "historial": "historial diario"}[hoja.tipo] }}</span></h3>
+  <div class="grupo__campos mapeo">
+    {% for destino, (etiqueta, _) in (campos_catalogo if hoja.tipo == "catalogo" else campos_historial).items() %}
+    <div class="campo">
+      <label for="mapa_{{ indice }}_{{ destino }}">{{ etiqueta }}</label>
+      <select class="campo__entrada" id="mapa_{{ indice }}_{{ destino }}" name="mapa_{{ indice }}_{{ destino }}">
+        <option value="">— no importar —</option>
+        {% for columna in hoja.encabezados %}<option {% if hoja.mapeo.get(destino) == columna %}selected{% endif %}>{{ columna }}</option>{% endfor %}
+      </select>
+    </div>
+    {% endfor %}
+  </div>
+  {% if hoja.semanas %}<p class="sutil">Totales semanales detectados: {{ hoja.semanas | join(", ") }} (se supone {{ hoja.semanas[0] }} la semana más antigua).</p>{% endif %}
+  {% elif hoja.tipo == "configuracion" %}
+  <h3>{{ hoja.nombre }} <span class="sutil">· configuración</span></h3>
+  {% endif %}
+  {% endfor %}
+  <fieldset class="grupo grupo--interno">
+    <legend>Opciones</legend>
+    <div class="grupo__campos">
+      <div class="campo">
+        <label for="precio_unitario_q">Columna <code>precio_unitario_q</code></label>
+        <select class="campo__entrada" id="precio_unitario_q" name="precio_unitario_q">
+          {% set actual = opciones.columna_ambigua.get("precio_unitario_q", "ignorar") %}
+          <option value="ignorar" {% if actual == "ignorar" %}selected{% endif %}>No importarla</option>
+          <option value="costo_compra" {% if actual == "costo_compra" %}selected{% endif %}>Es costo de compra</option>
+          <option value="precio_venta" {% if actual == "precio_venta" %}selected{% endif %}>Es precio de venta</option>
+        </select>
+      </div>
+      <div class="campo">
+        <label for="margen_simulado">Precio de venta simulado si falta (margen %)</label>
+        <input class="campo__entrada" id="margen_simulado" name="margen_simulado" type="number" min="0" step="any" value="{{ (opciones.margen_simulado * 100) | corto if opciones.margen_simulado is not none else '' }}">
+      </div>
+    </div>
+    <input type="hidden" name="importar_semanas" value="{{ '1' if opciones.importar_semanas else '0' }}">
+    <input type="hidden" name="aplicar_configuracion" value="{{ '1' if opciones.aplicar_configuracion else '0' }}">
+    <label class="casilla"><input type="checkbox" name="ajustar_existencias" value="1" {% if opciones.ajustar_existencias %}checked{% endif %}> Registrar un ajuste cuando la existencia de un medicamento ya existente difiere</label>
+  </fieldset>
+  <div class="acciones"><button class="boton" type="submit">Actualizar vista previa</button></div>
+</form>
+{% endif %}
+
+{% if vista.ignoradas %}
+<section class="panel">
+  <h2>Columnas que no se importan</h2>
+  <ul class="politica">{% for c in vista.ignoradas %}<li><code>{{ c.columna }}</code> <span class="sutil">({{ c.hoja }})</span>: {{ c.motivo }}</li>{% endfor %}</ul>
+</section>
+{% endif %}
+
+{% if catalogo %}
+<section class="panel">
+  <h2>Catálogo y apertura</h2>
+  <div class="tabla-envoltura tabla-envoltura--plana">
+    <table class="tabla tabla--compacta">
+      <thead><tr><th>Fila</th><th>Acción</th><th>Medicamento</th><th>Unidad</th><th>Proveedor</th><th class="num">Costo</th><th class="num">Precio</th><th class="num">Paquete</th><th class="num">Existencia</th><th class="num">L</th><th class="num">Semanas</th><th>Notas</th></tr></thead>
+      <tbody>
+        {% for f in catalogo %}
+        <tr class="{% if f.accion == 'error' %}fila--error{% endif %}">
+          <td class="sutil" title="{{ f.procedencia }}">{{ f.fila }}</td>
+          <td><span class="estado {{ 'estado--bien' if f.accion == 'crear' else 'estado--pedir' if f.accion == 'error' else '' }}">{{ {"crear": "Nuevo", "actualizar": "Actualizar", "error": "Error"}[f.accion] }}</span></td>
+          <td><strong>{{ f.datos.nombre }}</strong> <span class="sutil">{{ f.datos.presentacion }}</span>{% if f.datos.sku %}<span class="sutil bloque">{{ f.datos.sku }}</span>{% endif %}</td>
+          <td>{{ f.datos.unidad }}</td>
+          <td>{{ f.datos.proveedor }}</td>
+          <td class="num">{{ f.datos.costo_compra | dinero }}</td>
+          <td class="num">{{ f.datos.precio_venta | dinero }}{% if f.precio_generado %}<span class="sutil bloque">simulado</span>{% endif %}</td>
+          <td class="num">{{ f.datos.unidades_paquete or "—" }}</td>
+          <td class="num">{{ f.datos.existencia if f.datos.existencia is not none else "—" }}</td>
+          <td class="num">{{ f.datos.tiempo_entrega | corto }}</td>
+          <td class="num">{{ f.semanas | length }}</td>
+          <td class="sutil">{% for err in f.errores %}<span class="campo__error bloque">{{ err }}</span>{% endfor %}{{ f.aviso }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+{% if historial %}
+<section class="panel">
+  <h2>Historial diario</h2>
+  <p class="sutil">No mueve existencias. Un día ya importado o en que el sistema ya registra ventas se omite al aplicar.</p>
+  <div class="tabla-envoltura tabla-envoltura--plana tabla--alta">
+    <table class="tabla tabla--compacta">
+      <thead><tr><th>Fila</th><th>Fecha</th><th>Medicamento</th><th class="num">Cantidad</th><th>Notas</th></tr></thead>
+      <tbody>
+        {% for f in historial[:300] %}
+        <tr class="{% if f.accion == 'error' %}fila--error{% endif %}">
+          <td class="sutil" title="{{ f.procedencia }}">{{ f.fila }}</td>
+          <td>{{ f.fecha }}</td>
+          <td>{{ f.nombre }} <span class="sutil">{{ f.presentacion }}</span></td>
+          <td class="num">{{ f.cantidad if f.cantidad is not none else "—" }}</td>
+          <td>{% for err in f.errores %}<span class="campo__error bloque">{{ err }}</span>{% endfor %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if historial | length > 300 %}<p class="sutil">Se muestran 300 de {{ historial | length }} filas.</p>{% endif %}
+</section>
+{% endif %}
+
+{% if vista.configuracion %}
+<section class="panel">
+  <h2>Configuración</h2>
+  <ul class="politica">{% for f in vista.configuracion %}<li><code>{{ f.campo }}</code> = {{ f.valor }} <span class="sutil">({{ f.procedencia }})</span>{% for err in f.errores %} <span class="campo__error">{{ err }}</span>{% endfor %}</li>{% endfor %}</ul>
+</section>
+{% endif %}
+
+{% if imp.estado == "vista_previa" %}
+<div class="acciones">
+  <form method="post" action="/importar/{{ imp.id }}/confirmar" data-una-vez data-confirmar="¿Aplicar la importación? Las filas con error no se importan.">
+    <button class="boton boton--primario" type="submit">Confirmar importación</button>
+  </form>
+  <form method="post" action="/importar/{{ imp.id }}/descartar"><button class="boton" type="submit">Descartar</button></form>
+</div>
+{% endif %}
+{% endblock %}

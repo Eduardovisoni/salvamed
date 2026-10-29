@@ -1,5 +1,12 @@
+"""Campos y validación de los formularios (medicamento, configuración y proveedor).
+
+El alta de un medicamento es sencilla: solo nombre y unidad son obligatorios.
+Lo demás puede quedar vacío; el plan muestra qué resultados quedan pendientes.
+"""
+
 import math
 from dataclasses import dataclass
+from datetime import date
 
 
 @dataclass(frozen=True)
@@ -8,14 +15,13 @@ class Campo:
     etiqueta: str
     simbolo: str = ""
     ayuda: str = ""
-    texto: bool = False
+    tipo: str = "numero"  # texto, numero, entero, fecha, porcentaje, proveedor
+    obligatorio: bool = False
     largo_max: int = 0
-    entero: bool = False
     minimo: float | None = None
     minimo_incluido: bool = True
     maximo: float | None = None
     maximo_incluido: bool = True
-    paso: str = "any"
     marcador: str = ""
 
 
@@ -24,126 +30,113 @@ class Grupo:
     titulo: str
     descripcion: str
     campos: tuple[Campo, ...]
+    solo_alta: bool = False
 
 
-GRUPOS = (
+GRUPOS_MEDICAMENTO = (
     Grupo(
         "Medicamento",
-        "Qué es y cuánto hay en bodega ahora.",
+        "Lo que se busca al vender. La presentación distingue productos con el mismo nombre.",
         (
-            Campo("nombre", "Nombre", texto=True, largo_max=120, marcador="Ej. Ceftriaxona"),
-            Campo(
-                "unidad",
-                "Se cuenta en",
-                texto=True,
-                largo_max=40,
-                marcador="ampollas, viales, frascos…",
-            ),
-            Campo(
-                "existencia",
-                "Existencia actual",
-                entero=True,
-                minimo=0,
-                paso="1",
-                ayuda="En el día a día cambia sola con las salidas y los pedidos recibidos.",
-            ),
+            Campo("nombre", "Nombre", tipo="texto", obligatorio=True, largo_max=120, marcador="Ej. Ceftriaxona"),
+            Campo("presentacion", "Presentación", tipo="texto", largo_max=80, marcador="Ej. 1 g, 500 mg/5 ml"),
+            Campo("unidad", "Se cuenta en", tipo="texto", obligatorio=True, largo_max=40, marcador="vial, ampolla, frasco…"),
+            Campo("sku", "Código interno", tipo="texto", largo_max=40, ayuda="Opcional. Sirve para un lector de códigos."),
+            Campo("clasificacion", "Clasificación", tipo="texto", largo_max=40, marcador="Regular, Controlado…"),
+            Campo("proveedor_id", "Proveedor", tipo="proveedor"),
         ),
     ),
     Grupo(
-        "Demanda estimada",
-        "Solo se usa mientras el medicamento tenga menos de 7 días de salidas registradas. "
-        "Después, μD y σD se calculan solos con las salidas de los últimos 30 días.",
+        "Precios y paquete",
+        "Costo de compra: lo que paga la farmacia al proveedor. Precio de venta: lo que paga el cliente.",
         (
-            Campo(
-                "consumo_promedio",
-                "Consumo promedio por día",
-                simbolo="μD",
-                minimo=0,
-                minimo_incluido=False,
-                ayuda="Si el dato es semanal, divide la media entre 7.",
-            ),
-            Campo(
-                "desviacion",
-                "Desviación estándar por día",
-                simbolo="σD",
-                minimo=0,
-                ayuda="Si el dato es semanal, divide la desviación entre √7.",
-            ),
+            Campo("costo_compra", "Costo de compra por unidad (Q)", minimo=0, minimo_incluido=False),
+            Campo("precio_venta", "Precio de venta por unidad (Q)", minimo=0, minimo_incluido=False),
+            Campo("unidades_paquete", "Unidades por paquete", tipo="entero", minimo=1, ayuda="Para redondear el pedido a paquetes completos."),
         ),
     ),
     Grupo(
-        "Proveedor y costos",
-        "Costos en quetzales.",
-        (
-            Campo(
-                "tiempo_entrega",
-                "Tiempo de entrega (días)",
-                simbolo="L",
-                minimo=0,
-                minimo_incluido=False,
-            ),
-            Campo(
-                "costo_pedido",
-                "Costo de hacer un pedido",
-                simbolo="S",
-                minimo=0,
-                minimo_incluido=False,
-            ),
-            Campo(
-                "costo_mantener",
-                "Costo de mantener una unidad al año",
-                simbolo="H",
-                minimo=0,
-                minimo_incluido=False,
-            ),
-        ),
+        "Existencia inicial",
+        "Se registra como movimiento de apertura. Después, la existencia solo cambia con ventas, recepciones y ajustes.",
+        (Campo("existencia_inicial", "Existencia al darlo de alta", tipo="entero", minimo=0),),
+        solo_alta=True,
     ),
     Grupo(
-        "Política",
-        "Qué tan seguro queremos estar de no quedarnos sin el medicamento.",
+        "Excepciones (opcional)",
+        "Vacío = usar la configuración general. Solo para medicamentos que necesiten otro valor.",
         (
-            Campo(
-                "nivel_servicio",
-                "Probabilidad de servicio (%)",
-                simbolo="Z",
-                minimo=50,
-                maximo=100,
-                maximo_incluido=False,
-                ayuda="De 50 a 99.99. Para medicamentos críticos se recomienda 99.",
-            ),
-            Campo(
-                "dias_habiles",
-                "Días hábiles por año",
-                entero=True,
-                minimo=1,
-                maximo=366,
-                paso="1",
-            ),
+            Campo("nivel_servicio", "Probabilidad de servicio (%)", simbolo="p", minimo=50, maximo=100, maximo_incluido=False),
+            Campo("tasa_mantenimiento", "Tasa anual de mantenimiento (%)", tipo="porcentaje", minimo=0, minimo_incluido=False, maximo=500),
+            Campo("costo_mantener", "H documentado (Q por unidad al año)", simbolo="H", minimo=0, minimo_incluido=False,
+                  ayuda="Si lo llenas, se usa en lugar de costo × tasa."),
+            Campo("costo_pedido", "Costo por pedido (Q)", simbolo="S", minimo=0, minimo_incluido=False),
+            Campo("tiempo_entrega", "Plazo de entrega (días de operación)", simbolo="L", minimo=0, minimo_incluido=False),
+            Campo("dias_operacion_anio", "Días de operación al año", simbolo="A", tipo="entero", minimo=1, maximo=366),
+            Campo("capacidad_maxima", "Capacidad de almacenamiento (unidades)", tipo="entero", minimo=1),
+            Campo("vencimiento_proximo", "Vencimiento más próximo", tipo="fecha"),
         ),
     ),
 )
 
-CAMPOS = tuple(c for g in GRUPOS for c in g.campos)
+GRUPOS_CONFIGURACION = (
+    Grupo(
+        "Calendario",
+        "Supuesto de demostración, editable. Si la farmacia cierra algún día, A y L deben contar solo días abiertos.",
+        (
+            Campo("dias_operacion_anio", "Días de operación al año", simbolo="A", tipo="entero", obligatorio=True, minimo=1, maximo=366),
+            Campo("hora_apertura", "Hora de apertura", tipo="entero", obligatorio=True, minimo=0, maximo=23),
+            Campo("hora_cierre", "Hora de cierre", tipo="entero", obligatorio=True, minimo=1, maximo=24),
+        ),
+    ),
+    Grupo(
+        "Política",
+        "Valores generales; cada medicamento puede tener su excepción.",
+        (
+            Campo("nivel_servicio", "Probabilidad de servicio (%)", simbolo="p", obligatorio=True, minimo=50, maximo=100, maximo_incluido=False,
+                  ayuda="No es el porcentaje exacto de pacientes atendidos: es la probabilidad de no agotarse durante L."),
+            Campo("tasa_mantenimiento", "Tasa anual de mantenimiento (%)", tipo="porcentaje", obligatorio=True, minimo=0, minimo_incluido=False, maximo=500,
+                  ayuda="Supuesto académico: H = costo de compra × tasa. No es un estándar ni un dato medido."),
+            Campo("costo_pedido", "Costo por pedido (Q)", simbolo="S", obligatorio=True, minimo=0, minimo_incluido=False,
+                  ayuda="Escenario base: Q35, solo el envío."),
+            Campo("tiempo_entrega", "Plazo de entrega (días)", simbolo="L", obligatorio=True, minimo=0, minimo_incluido=False,
+                  ayuda="Escenario base: 3 días, constante."),
+        ),
+    ),
+    Grupo(
+        "Estimación",
+        "Cómo se calcula el consumo con las ventas.",
+        (
+            Campo("ventana_dias", "Ventana de días completos", tipo="entero", obligatorio=True, minimo=2, maximo=365),
+            Campo("dias_aviso", "Avisar «pedir pronto» con días de anticipación", tipo="entero", obligatorio=True, minimo=0, maximo=60),
+            Campo("aumento_umbral", "Aviso de aumento si el consumo reciente es × veces el anterior", obligatorio=True, minimo=1, minimo_incluido=False, maximo=10),
+        ),
+    ),
+)
 
-VALORES_NUEVO = {"nivel_servicio": "95", "dias_habiles": "365"}
+CAMPOS_PROVEEDOR = (
+    Campo("nombre", "Nombre", tipo="texto", obligatorio=True, largo_max=120),
+    Campo("tiempo_entrega", "Plazo de entrega (días)", simbolo="L", minimo=0, minimo_incluido=False),
+    Campo("costo_envio", "Costo de envío por pedido (Q)", simbolo="S", minimo=0, minimo_incluido=False),
+    Campo("articulos_por_envio", "Artículos que suelen ir juntos", tipo="entero", minimo=1,
+          ayuda="Criterio de reparto del envío para la EOQ de cada artículo: S = envío ÷ este número."),
+    Campo("contacto", "Contacto", tipo="texto", largo_max=160),
+)
+
+
+def campos(grupos) -> tuple[Campo, ...]:
+    return tuple(c for g in grupos for c in g.campos)
 
 
 def _texto_numero(valor: float) -> str:
     return f"{valor:.6f}".rstrip("0").rstrip(".")
 
 
-def valores_de(medicamento) -> dict[str, str]:
-    valores = {}
-    for campo in CAMPOS:
-        valor = getattr(medicamento, campo.nombre)
-        valores[campo.nombre] = valor if campo.texto else _texto_numero(valor)
-    return valores
-
-
-def _numero(texto: str) -> float:
+def numero(texto: str) -> float:
     texto = texto.strip().replace(" ", "")
     if "," in texto and "." not in texto:
         texto = texto.replace(",", ".")
+    else:
+        texto = texto.replace(",", "")
     return float(texto)
 
 
@@ -163,72 +156,75 @@ def _error_de_rango(campo: Campo, valor: float) -> str | None:
     return None
 
 
-def leer_formulario(formulario) -> tuple[dict[str, str], dict, dict[str, str]]:
-    """Devuelve (valores escritos, datos limpios, errores por campo)."""
+def valor_texto(campo: Campo, valor) -> str:
+    if valor is None:
+        return ""
+    if campo.tipo == "porcentaje":
+        return _texto_numero(valor * 100)
+    if campo.tipo == "fecha":
+        return valor.isoformat()
+    if campo.tipo in ("texto",):
+        return str(valor)
+    if campo.tipo == "proveedor":
+        return str(valor)
+    return _texto_numero(valor)
+
+
+def valores_de(objeto, lista) -> dict[str, str]:
+    return {c.nombre: valor_texto(c, getattr(objeto, c.nombre, None)) for c in lista}
+
+
+def leer(formulario, lista, proveedores_validos=()) -> tuple[dict[str, str], dict, dict[str, str]]:
+    """Devuelve (valores escritos, datos limpios, errores por campo). Vacío opcional → None."""
     valores, datos, errores = {}, {}, {}
-    for campo in CAMPOS:
+    for campo in lista:
         crudo = str(formulario.get(campo.nombre, "")).strip()
         valores[campo.nombre] = crudo
         if not crudo:
-            errores[campo.nombre] = "Este dato es obligatorio."
+            if campo.obligatorio:
+                errores[campo.nombre] = "Este dato es obligatorio."
+            elif campo.tipo == "texto":
+                datos[campo.nombre] = ""
+            else:
+                datos[campo.nombre] = None
             continue
-        if campo.texto:
+        if campo.tipo == "texto":
             if len(crudo) > campo.largo_max:
                 errores[campo.nombre] = f"Máximo {campo.largo_max} caracteres."
             else:
                 datos[campo.nombre] = crudo
             continue
+        if campo.tipo == "proveedor":
+            if crudo.isdigit() and int(crudo) in proveedores_validos:
+                datos[campo.nombre] = int(crudo)
+            else:
+                errores[campo.nombre] = "Elige un proveedor de la lista."
+            continue
+        if campo.tipo == "fecha":
+            try:
+                datos[campo.nombre] = date.fromisoformat(crudo)
+            except ValueError:
+                errores[campo.nombre] = "Escribe una fecha válida."
+            continue
         try:
-            numero = _numero(crudo)
+            valor = numero(crudo)
         except ValueError:
             errores[campo.nombre] = "Escribe un número."
             continue
-        if not math.isfinite(numero):
+        if not math.isfinite(valor):
             errores[campo.nombre] = "Escribe un número."
             continue
-        if campo.entero and not numero.is_integer():
+        if campo.tipo == "entero" and not valor.is_integer():
             errores[campo.nombre] = "Debe ser un número entero."
             continue
-        error = _error_de_rango(campo, numero)
+        error = _error_de_rango(campo, valor)
         if error:
             errores[campo.nombre] = error
             continue
-        datos[campo.nombre] = int(numero) if campo.entero else numero
-    return valores, datos, errores
-
-
-NOTA_MAX = 120
-CANTIDAD_MAX = 100_000
-SALAS = ("Sala de Emergencias", "Sala de traumas")
-
-
-def leer_movimiento(formulario, con_sala: bool = False) -> tuple[dict[str, str], dict, dict[str, str]]:
-    """Cantidad y nota de un movimiento. En las salidas la nota es la sala que lo pidió."""
-    valores = {
-        clave: str(formulario.get(clave, "")).strip()
-        for clave in ("medicamento_id", "cantidad", "nota")
-    }
-    datos, errores = {}, {}
-    try:
-        cantidad = _numero(valores["cantidad"]) if valores["cantidad"] else None
-    except ValueError:
-        cantidad = math.nan
-    if cantidad is None:
-        errores["cantidad"] = "Escribe cuántas unidades."
-    elif not math.isfinite(cantidad):
-        errores["cantidad"] = "Escribe un número."
-    elif not cantidad.is_integer():
-        errores["cantidad"] = "Debe ser un número entero."
-    elif cantidad < 1:
-        errores["cantidad"] = "Debe ser 1 o más."
-    elif cantidad > CANTIDAD_MAX:
-        errores["cantidad"] = f"Máximo {CANTIDAD_MAX:,} unidades por movimiento."
-    else:
-        datos["cantidad"] = int(cantidad)
-    if con_sala and valores["nota"] not in SALAS:
-        errores["nota"] = "Elige una sala."
-    elif len(valores["nota"]) > NOTA_MAX:
-        errores["nota"] = f"Máximo {NOTA_MAX} caracteres."
-    else:
-        datos["nota"] = valores["nota"]
+        if campo.tipo == "entero":
+            datos[campo.nombre] = int(valor)
+        elif campo.tipo == "porcentaje":
+            datos[campo.nombre] = valor / 100
+        else:
+            datos[campo.nombre] = valor
     return valores, datos, errores

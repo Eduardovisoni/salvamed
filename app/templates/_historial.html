@@ -1,0 +1,25 @@
+{% set tipos = {"apertura": "Apertura", "venta": "Venta", "recepcion": "Recepción", "ajuste": "Ajuste", "anulacion": "Anulación"} %}
+{% if historial %}
+<div class="tabla-envoltura tabla-envoltura--plana">
+  <table class="tabla tabla--compacta">
+    <thead><tr><th>Fecha</th><th>Movimiento</th><th class="num">Cantidad</th><th class="num">Queda</th><th>Detalle</th></tr></thead>
+    <tbody>
+      {% for mv in historial %}
+      <tr>
+        <td class="num-izq">{{ mv.fecha | fecha }}</td>
+        <td><span class="tipo tipo--{{ mv.tipo }}">{{ tipos.get(mv.tipo, mv.tipo) }}</span></td>
+        <td class="num">{% if mv.cantidad > 0 %}+{% else %}−{% endif %}{{ mv.cantidad | abs }}</td>
+        <td class="num">{{ mv.existencia_despues }}</td>
+        <td class="sutil">
+          {% if mv.venta_id %}<a href="/ventas/{{ mv.venta_id }}">Venta #{{ mv.venta_id }}</a> {% endif %}
+          {% if mv.pedido_id %}<a href="/pedidos/{{ mv.pedido_id }}">Pedido #{{ mv.pedido_id }}</a> {% endif %}
+          {{ mv.nota }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="vacio">Todavía no hay movimientos.</p>
+{% endif %}

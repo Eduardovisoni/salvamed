@@ -1,30 +1,59 @@
-"""μD y σD a partir de las salidas registradas.
+"""μD y σD a partir de lo que realmente se vendió.
 
-Se suma lo que salió cada día (hora de Guatemala) en los últimos 30 días,
-contando hoy y contando como 0 los días sin salidas. μD es el promedio de esos
-totales diarios y σD su desviación estándar muestral.
+Solo cuentan días completos: hoy todavía no termina, así que se muestra aparte
+como indicador intradía y no entra en el promedio. Se usan los últimos N días
+completos (N configurable, 30 al inicio) en los que la farmacia abrió.
 
-Los días se cuentan desde que el medicamento entró al sistema. Mientras tenga
-menos de 7 días (o ninguna salida en la ventana) se usan los valores estimados
-que se escribieron en el formulario.
+Un día cuenta como observado si el medicamento ya estaba en el sistema ese día
+(desde `observado_desde`) o si hay historia diaria importada para ese día. Un
+día observado sin ventas vale 0; un día sin registro no se convierte en 0.
+
+Con 2 o más días completos ya se puede calcular la desviación muestral, pero
+con pocos días la estimación es provisional. Si todavía hay menos de 7 días
+diarios y existe historia semanal importada, se usa la base semanal convertida
+a días: μD = μS / d y σD = σS / √d, donde d son los días abiertos por semana
+(supone días independientes entre sí).
+
+Las ventas que no se hicieron por falta de existencia no quedan registradas:
+la demanda observada puede subestimar la demanda real.
 """
 
 from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
+from math import sqrt
 from statistics import mean, stdev
 
 GUATEMALA = timezone(timedelta(hours=-6))
-VENTANA_DIAS = 30
-DIAS_MINIMOS = 7
+DIAS_PARA_PREFERIR_DIARIO = 7
 
 
 @dataclass(frozen=True)
 class Consumo:
-    mu_d: float
-    sigma_d: float
-    del_historial: bool
+    mu_d: float | None
+    sigma_d: float | None
     dias: int
-    por_dia: tuple[int, ...]
+    calidad: str  # "sin_datos", "insuficiente", "provisional" o "completa"
+    base: str  # "diaria", "semanal" o ""
+    por_dia: tuple[tuple[date, int], ...]
+    hoy: int
+    semanas: int = 0
+
+    @property
+    def disponible(self) -> bool:
+        return self.mu_d is not None and self.sigma_d is not None
+
+    @property
+    def descripcion(self) -> str:
+        if self.base == "semanal":
+            return f"Derivado de {self.semanas} totales semanales importados (supuesto: días independientes)"
+        if self.calidad == "sin_datos":
+            return "Todavía no hay días completos con ventas registradas"
+        if self.calidad == "insuficiente":
+            return "Solo hay 1 día completo: se necesitan al menos 2 para la desviación"
+        dias = f"{self.dias} {'día completo' if self.dias == 1 else 'días completos'}"
+        if self.calidad == "provisional":
+            return f"Provisional: {dias} de ventas"
+        return f"Estimación actualizada con {dias} de ventas"
 
 
 def a_utc(fecha: datetime) -> datetime:
@@ -41,25 +70,91 @@ def hora_local(fecha: datetime) -> datetime:
     return a_utc(fecha).astimezone(GUATEMALA)
 
 
-def inicio_de_ventana(ahora: datetime) -> datetime:
-    primer_dia = dia_local(ahora) - timedelta(days=VENTANA_DIAS - 1)
-    return datetime.combine(primer_dia, time(), GUATEMALA).astimezone(timezone.utc)
+def abre(dia: date, dias_semana: str) -> bool:
+    """dias_semana: 7 caracteres de lunes a domingo, '1' si la farmacia abre."""
+    return dias_semana[dia.weekday()] == "1"
+
+
+def dias_abiertos_por_semana(dias_semana: str) -> int:
+    return max(dias_semana.count("1"), 1)
+
+
+def dias_de_ventana(hoy: date, ventana: int, dias_semana: str) -> list[date]:
+    """Los últimos `ventana` días completos (antes de hoy) en que la farmacia abrió."""
+    dias, dia = [], hoy - timedelta(days=1)
+    limite = ventana * 7
+    while len(dias) < ventana and limite > 0:
+        if abre(dia, dias_semana):
+            dias.append(dia)
+        dia -= timedelta(days=1)
+        limite -= 1
+    return sorted(dias)
 
 
 def consumo_de(
-    salidas: list[tuple[datetime, int]],
-    desde: datetime,
-    ahora: datetime,
-    mu_estimado: float,
-    sigma_estimado: float,
+    ventas_por_dia: dict[date, int],
+    historico_diario: dict[date, int],
+    semanales: list[int],
+    observado_desde: date | None,
+    hoy: date,
+    ventana: int = 30,
+    dias_semana: str = "1111111",
 ) -> Consumo:
-    hoy = dia_local(ahora)
-    dias = max(1, min(VENTANA_DIAS, (hoy - dia_local(desde)).days + 1))
-    por_dia = [0] * dias
-    for fecha, cantidad in salidas:
-        atras = (hoy - dia_local(fecha)).days
-        if 0 <= atras < dias:
-            por_dia[dias - 1 - atras] += cantidad
-    if dias >= DIAS_MINIMOS and sum(por_dia) > 0:
-        return Consumo(float(mean(por_dia)), float(stdev(por_dia)), True, dias, tuple(por_dia))
-    return Consumo(mu_estimado, sigma_estimado, False, dias, tuple(por_dia))
+    observados = []
+    for dia in dias_de_ventana(hoy, ventana, dias_semana):
+        if dia in historico_diario:
+            observados.append((dia, historico_diario[dia]))
+        elif observado_desde is not None and dia >= observado_desde:
+            observados.append((dia, ventas_por_dia.get(dia, 0)))
+    hoy_total = ventas_por_dia.get(hoy, 0)
+    valores = [cantidad for _, cantidad in observados]
+    n = len(valores)
+    calidad = "completa" if n >= ventana else "provisional"
+
+    if len(semanales) >= 2 and n < DIAS_PARA_PREFERIR_DIARIO:
+        d = dias_abiertos_por_semana(dias_semana)
+        return Consumo(
+            mean(semanales) / d,
+            stdev(semanales) / sqrt(d),
+            n,
+            "provisional",
+            "semanal",
+            tuple(observados),
+            hoy_total,
+            len(semanales),
+        )
+    if n >= 2:
+        return Consumo(float(mean(valores)), float(stdev(valores)), n, calidad, "diaria", tuple(observados), hoy_total)
+    return Consumo(
+        None, None, n, "insuficiente" if n == 1 else "sin_datos", "", tuple(observados), hoy_total
+    )
+
+
+@dataclass(frozen=True)
+class Aumento:
+    reciente: float
+    anterior: float
+    razon: float
+    dias_recientes: int
+    dias_anteriores: int
+
+
+def aumento_de(consumo: Consumo, umbral: float = 1.5, recientes: int = 7, minimo_anterior: int = 14) -> Aumento | None:
+    """Compara el promedio de los últimos 7 días completos con el de los días anteriores.
+
+    Es una comparación simple y explicable, no un diagnóstico: con menos de 14
+    días anteriores no se evalúa, y un pico genuino no se elimina.
+    """
+    if consumo.base != "diaria":
+        return None
+    valores = [cantidad for _, cantidad in consumo.por_dia]
+    if len(valores) < recientes + minimo_anterior:
+        return None
+    reciente = mean(valores[-recientes:])
+    anterior = mean(valores[:-recientes])
+    if anterior <= 0:
+        return None
+    razon = reciente / anterior
+    if razon < umbral:
+        return None
+    return Aumento(reciente, anterior, razon, recientes, len(valores) - recientes)

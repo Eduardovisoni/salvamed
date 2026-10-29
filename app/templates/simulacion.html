@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block titulo %}Simulación · SALVAMED{% endblock %}
+{% block clase_cuerpo %}cuerpo--sim{% endblock %}
+{% block contenido %}
+<div class="titulo-pagina">
+  <div>
+    <h1>Simulación <span class="estado estado--pronto">Datos simulados · no es inventario real</span></h1>
+    <p class="sutil">Una farmacia en tiempo acelerado con las mismas fórmulas y reglas que la operación. Sus ventas, dinero, pedidos y mensajes están separados.</p>
+  </div>
+  <details class="nueva-corrida">
+    <summary class="boton">{% if corrida %}Reiniciar o cambiar escenario{% else %}Nueva corrida{% endif %}</summary>
+    <form method="post" action="/simulacion/nueva" class="panel nueva-corrida__panel" {% if corrida %}data-confirmar="Se termina la corrida actual: sus botones de Telegram dejarán de tener efecto. ¿Continuar?"{% endif %}>
+      <div class="campo">
+        <label for="escenario">Escenario</label>
+        <select class="campo__entrada" id="escenario" name="escenario">
+          {% for clave, e in escenarios.items() %}<option value="{{ clave }}" {% if corrida and corrida.escenario == clave %}selected{% endif %}>{{ e.titulo }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="campo">
+        <label for="semilla">Semilla <span class="sutil">(misma semilla = mismas ventas)</span></label>
+        <input class="campo__entrada" id="semilla" name="semilla" type="number" min="0" step="1" value="{{ corrida.semilla if corrida else 2026 }}">
+      </div>
+      <div class="campo">
+        <label for="demora">Demora de gestión del encargado (horas virtuales)</label>
+        <input class="campo__entrada" id="demora" name="demora" type="number" min="0" max="72" step="0.5" value="{{ (corrida.demora_gestion / 60) | corto if corrida else 0 }}">
+        <span class="campo__ayuda">0 = respuesta inmediata (supuesto). Úsalo para comparar corridas con la misma semilla.</span>
+      </div>
+      <button class="boton boton--primario" type="submit">Empezar corrida nueva</button>
+    </form>
+  </details>
+</div>
+
+{% if not corrida %}
+<section class="panel vacio">
+  <p>No hay una corrida activa. Elige un escenario y empieza: la farmacia arranca sin historia y el plan aparece cuando hay días completos de ventas.</p>
+  <ul class="politica" style="text-align:left;max-width:720px;margin:0 auto">
+    {% for clave, e in escenarios.items() %}<li><strong>{{ e.titulo }}.</strong> {{ e.descripcion }}</li>{% endfor %}
+  </ul>
+</section>
+{% else %}
+<div id="sim" data-corrida="{{ corrida.id }}">
+  <section class="sim-barra panel">
+    <div class="sim-reloj">
+      <span class="sim-reloj__dia" id="reloj-dia">Día —</span>
+      <span class="sim-reloj__fecha" id="reloj-fecha">—</span>
+      <span class="sim-reloj__hora" id="reloj-hora">--:--</span>
+      <span class="sim-reloj__nota">fecha y hora simuladas</span>
+    </div>
+    <div class="sim-controles">
+      <button class="boton boton--primario boton--grande" id="play" type="button">▶ Iniciar</button>
+      <div class="sim-velocidades" role="group" aria-label="Velocidad">
+        {% for v in velocidades %}<button type="button" class="chip" data-velocidad="{{ v }}" aria-pressed="false">×{{ v }}</button>{% endfor %}
+      </div>
+      <button class="boton" type="button" data-accion="dia">Siguiente día</button>
+      <button class="boton" type="button" data-accion="evento">Siguiente evento</button>
+    </div>
+    <div class="sim-estado" id="estado-reloj">En pausa</div>
+    <p class="sim-escala sutil">×1: 1 s real = {{ minutos_por_segundo }} min simulados (un día de farmacia ≈ <span id="seg-dia">72</span> s). La velocidad no cambia los resultados.</p>
+  </section>
+
+  <section class="sim-pausa" id="pausa" hidden>
+    <div class="sim-pausa__cabeza">
+      <span class="sim-pausa__icono" aria-hidden="true">⏸</span>
+      <div>
+        <h2 id="pausa-titulo">Pausa de exposición</h2>
+        <p class="sutil">El reloj virtual se detuvo en el instante del aviso para explicarlo. En una farmacia real las ventas no se detienen mientras el encargado responde; aquí se supone <span id="pausa-supuesto">respuesta inmediata en tiempo virtual</span>.</p>
+      </div>
+    </div>
+    <div class="sim-pausa__cuerpo">
+      <div class="sim-calculo" id="calculo"></div>
+      <div class="sim-telegram">
+        <h3>Aviso por Telegram</h3>
+        <div id="telegram-estado"></div>
+        <pre class="mensaje__texto" id="telegram-texto"></pre>
+        <p class="sim-espera"><span class="girando" aria-hidden="true"></span> Esperando que el encargado pulse <strong>«Pedido realizado»</strong>…</p>
+        <button class="boton" type="button" id="confirmar-web">Responder como encargado desde aquí (sin Telegram)</button>
+      </div>
+    </div>
+  </section>
+
+  <div class="sim-rejilla">
+    <section class="panel sim-escena">
+      <div class="sim-tienda" id="tienda">
+        <div class="sim-puerta"><span aria-hidden="true">🚪</span> Entrada</div>
+        <div class="sim-pasillo" id="pasillo" aria-hidden="true"></div>
+        <div class="sim-caja"><span aria-hidden="true">🧾</span> Caja<small id="caja-total"></small></div>
+      </div>
+      <div class="sim-estantes" id="estantes"></div>
+    </section>
+
+    <aside class="sim-lado">
+      <section class="panel">
+        <h2>Dinero <span class="sutil">(simulado)</span></h2>
+        <dl class="cuentas" id="dinero"></dl>
+      </section>
+      <section class="panel sim-eventos">
+        <h2>Lo que pasa</h2>
+        <ol id="eventos" class="eventos"></ol>
+      </section>
+    </aside>
+  </div>
+
+  <section class="panel">
+    <div class="sim-grafica__cabeza">
+      <h2 id="grafica-titulo">Existencias en el tiempo</h2>
+      <span class="sutil">Elige un medicamento en los estantes para verlo aquí.</span>
+    </div>
+    <svg id="grafica" class="sim-grafica" viewBox="0 0 900 260" preserveAspectRatio="none" role="img" aria-label="Existencia, punto de reorden e inventario de seguridad en el tiempo"></svg>
+    <div class="grafica__leyenda">
+      <span><i class="grafica__muestra grafica__muestra--existencia"></i>Existencia</span>
+      <span><i class="grafica__muestra grafica__muestra--r"></i>R vigente cada día</span>
+      <span><i class="grafica__muestra grafica__muestra--is"></i>Inventario de seguridad</span>
+      <span><i class="grafica__muestra grafica__muestra--aviso"></i>Aviso</span>
+      <span><i class="grafica__muestra grafica__muestra--pedido"></i>Pedido realizado</span>
+      <span><i class="grafica__muestra grafica__muestra--recepcion"></i>Recepción</span>
+    </div>
+  </section>
+</div>
+{% endif %}
+
+{% if anteriores %}
+<section class="panel">
+  <h2>Corridas</h2>
+  <p class="sutil">Con la misma semilla las ventas son las mismas: cambiar la demora de gestión permite comparar faltantes y pedidos. Son escenarios simulados, no ahorros reales de El Roble.</p>
+  <div class="tabla-envoltura tabla-envoltura--plana">
+    <table class="tabla tabla--compacta">
+      <thead><tr><th>#</th><th>Escenario</th><th class="num">Semilla</th><th class="num">Demora (h)</th><th class="num">Días cerrados</th><th class="num">Ventas</th><th class="num">Pedidos</th><th class="num">Faltantes</th><th>Estado</th></tr></thead>
+      <tbody>
+        {% for x in anteriores %}
+        <tr><td>{{ x.id }}</td><td>{{ x.escenario }}</td><td class="num">{{ x.semilla }}</td><td class="num">{{ x.demora | corto }}</td><td class="num">{{ x.dias }}</td><td class="num">{{ x.ventas | dinero }}</td><td class="num">{{ x.pedidos }}</td><td class="num">{{ x.faltantes }}</td><td>{{ "Activa" if x.estado == "activa" else "Terminada" }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if corrida %}<script src="/static/simulacion.js"></script>{% endif %}
+{% endblock %}

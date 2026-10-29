@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block titulo %}Pedido #{{ pedido.id }} · SALVAMED{% endblock %}
+{% block contenido %}
+<div class="titulo-pagina">
+  <div>
+    <a class="volver" href="/pedidos">← Pedidos</a>
+    <h1>Pedido #{{ pedido.id }} <span class="pedido-estado pedido-estado--{{ pedido.estado }}">{{ estados_pedido[pedido.estado] }}</span></h1>
+    <p class="sutil">
+      {{ "Aviso automático" if pedido.origen == "automatico" else "Pedido manual" }} del {{ pedido.creado | fecha }}
+      · proveedor {{ proveedor.nombre if proveedor else "sin asignar" }}
+      {% if pedido.realizado_en %}· realizado el {{ pedido.realizado_en | fecha }} por {{ pedido.confirmado_por }}{% endif %}
+      {% if pedido.recibido_en %}· recibido el {{ pedido.recibido_en | fecha }}{% endif %}
+    </p>
+  </div>
+</div>
+
+{% if error %}<div class="aviso aviso--error" role="alert">{{ error }}</div>{% endif %}
+{% if pedido.estado == "realizado" and pedido.fecha_estimada and pedido.fecha_estimada < momento %}
+<div class="aviso aviso--pedir">El pedido está atrasado: se esperaba el {{ pedido.fecha_estimada | fecha }}.</div>
+{% endif %}
+
+<section class="panel">
+  <h2>Líneas</h2>
+  <form method="post" action="/pedidos/{{ pedido.id }}/cantidades">
+    <div class="tabla-envoltura tabla-envoltura--plana">
+      <table class="tabla tabla--compacta">
+        <thead><tr><th>Medicamento</th><th class="num">Al aviso</th><th class="num">R</th><th class="num">EOQ</th><th class="num">Sugerida</th><th class="num">Pedida</th><th class="num">Recibida</th><th class="num">Costo unitario</th></tr></thead>
+        <tbody>
+          {% for l, m in lineas %}
+          <tr>
+            <td><a class="enlace-fila" href="/medicamentos/{{ m.id }}">{{ m.nombre_completo }}</a><span class="sutil bloque">{{ m.unidad }}{% if m.unidades_paquete > 1 %} · paquetes de {{ m.unidades_paquete }}{% endif %}</span></td>
+            <td class="num">{{ l.existencia_aviso if l.existencia_aviso is not none else "—" }}<span class="sutil bloque">posición {{ l.posicion_aviso if l.posicion_aviso is not none else "—" }}</span></td>
+            <td class="num">{{ l.punto_reorden | num(1) }}</td>
+            <td class="num">{{ l.cantidad_eoq | num(1) }}</td>
+            <td class="num">{{ l.cantidad_sugerida }}</td>
+            <td class="num">
+              {% if pedido.estado in ("pendiente", "realizado") %}
+              <input class="campo__entrada campo__entrada--chica" name="linea_{{ l.id }}" type="number" min="1" step="1" value="{{ l.cantidad_pedida }}" aria-label="Cantidad pedida">
+              {% else %}{{ l.cantidad_pedida }}{% endif %}
+            </td>
+            <td class="num">{{ l.cantidad_recibida }}</td>
+            <td class="num">{{ l.costo_unitario | dinero }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="carrito__total">
+      <span>Valor estimado del pedido (sin envío) · envío una sola vez: {{ pedido.costo_envio | dinero }}</span>
+      <strong>{{ (valor + pedido.costo_envio) | dinero }}</strong>
+    </div>
+    {% if pedido.estado in ("pendiente", "realizado") %}
+    <div class="acciones"><button class="boton" type="submit">Guardar cantidades pedidas</button></div>
+    {% endif %}
+  </form>
+</section>
+
+{% if pedido.estado == "pendiente" %}
+<section class="panel panel--estado panel--pronto">
+  <h2>Gestionar</h2>
+  <p>El encargado normalmente responde desde Telegram. Si no hay Telegram, también se puede registrar aquí.</p>
+  <div class="acciones">
+    <form method="post" action="/pedidos/{{ pedido.id }}/realizado" data-una-vez>
+      <button class="boton boton--primario" type="submit">✅ Pedido realizado</button>
+    </form>
+    <form method="post" action="/pedidos/{{ pedido.id }}/cancelar" class="en-linea" data-confirmar="¿Cancelar el pedido #{{ pedido.id }}?">
+      <input class="campo__entrada" name="motivo" maxlength="200" placeholder="Motivo (opcional)">
+      <button class="boton boton--peligro" type="submit">Cancelar pedido</button>
+    </form>
+  </div>
+  {% if mismos %}
+  <form method="post" action="/pedidos/{{ pedido.id }}/lineas" class="en-linea" style="margin-top:14px">
+    <label class="sutil" for="agregar_med">Compra conjunta (mismo proveedor, un solo envío):</label>
+    <select class="campo__entrada" id="agregar_med" name="medicamento_id" required>
+      {% for x in mismos %}<option value="{{ x.id }}">{{ x.nombre_completo }} (hay {{ x.existencia }})</option>{% endfor %}
+    </select>
+    <input class="campo__entrada campo__entrada--chica" name="cantidad" type="number" min="1" step="1" placeholder="Cantidad" required>
+    <button class="boton" type="submit">Agregar al pedido</button>
+  </form>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if pedido.estado == "realizado" %}
+<section class="panel panel--estado panel--bien">
+  <h2>Recibir</h2>
+  <p class="sutil">Escribe lo que llegó físicamente. Si llega una parte, el pedido sigue abierto con lo pendiente; si ya no llegará más, marca «cerrar».</p>
+  <form method="post" action="/pedidos/{{ pedido.id }}/recibir" data-una-vez>
+    <div class="grupo__campos">
+      {% for l, m in lineas %}
+      <div class="campo">
+        <label for="rec_{{ l.id }}">{{ m.nombre_completo }} <span class="sutil">(faltan {{ l.por_recibir }})</span></label>
+        <input class="campo__entrada" id="rec_{{ l.id }}" name="linea_{{ l.id }}" type="number" min="0" max="{{ l.por_recibir }}" step="1" value="{{ l.por_recibir }}">
+      </div>
+      {% endfor %}
+    </div>
+    <label class="casilla"><input type="checkbox" name="cerrar" value="1"> Cerrar el pedido aunque falten unidades</label>
+    <div class="acciones"><button class="boton boton--primario" type="submit">Registrar recepción</button></div>
+  </form>
+  <form method="post" action="/pedidos/{{ pedido.id }}/fecha" class="en-linea" style="margin-top:14px">
+    <label class="sutil" for="fecha">Corregir llegada estimada:</label>
+    <input class="campo__entrada" id="fecha" name="fecha" type="date" value="{{ pedido.fecha_estimada | iso_dia }}" required>
+    <button class="boton" type="submit">Guardar fecha</button>
+  </form>
+  <form method="post" action="/pedidos/{{ pedido.id }}/cancelar" class="en-linea" style="margin-top:10px" data-confirmar="¿Cancelar el pedido #{{ pedido.id }}?">
+    <input class="campo__entrada" name="motivo" maxlength="200" placeholder="Motivo (opcional)">
+    <button class="boton boton--peligro" type="submit">Cancelar pedido</button>
+  </form>
+</section>
+{% endif %}
+
+<section class="panel" id="mensajes">
+  <h2>Avisos por Telegram</h2>
+  {% include "_mensajes.html" %}
+</section>
+{% endblock %}

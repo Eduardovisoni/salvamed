@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block titulo %}Entrar · SALVAMED{% endblock %}
+{% block contenido %}
+<form class="panel entrar" method="post" action="/entrar">
+  <h1>Entrar</h1>
+  <p class="sutil">SALVAMED está protegido con una clave para que nadie más registre ventas, pedidos ni cambios.</p>
+  {% if error %}<div class="aviso aviso--error" role="alert">{{ error }}</div>{% endif %}
+  <input type="hidden" name="siguiente" value="{{ siguiente }}">
+  <div class="campo">
+    <label for="clave">Clave</label>
+    <input class="campo__entrada" id="clave" name="clave" type="password" autocomplete="current-password" required autofocus>
+  </div>
+  <div class="acciones" style="margin-top:14px"><button class="boton boton--primario" type="submit">Entrar</button></div>
+</form>
+{% endblock %}

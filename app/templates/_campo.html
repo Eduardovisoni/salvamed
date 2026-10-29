@@ -1,0 +1,37 @@
+{% set error = errores.get(campo.nombre) %}
+<div class="campo{% if error %} campo--error{% endif %}">
+  <label for="{{ campo.nombre }}{{ sufijo | default('') }}">
+    {{ campo.etiqueta }}
+    {% if campo.simbolo %}<span class="simbolo">{{ campo.simbolo }}</span>{% endif %}
+    {% if not campo.obligatorio %}<span class="sutil">(opcional)</span>{% endif %}
+  </label>
+  {% if campo.tipo == "proveedor" %}
+  <select class="campo__entrada" id="{{ campo.nombre }}{{ sufijo | default('') }}" name="{{ campo.nombre }}">
+    <option value="">Sin proveedor</option>
+    {% for p in proveedores %}
+    <option value="{{ p.id }}" {% if valores.get(campo.nombre) == p.id | string %}selected{% endif %}>{{ p.nombre }}</option>
+    {% endfor %}
+  </select>
+  {% else %}
+  <input
+    class="campo__entrada"
+    id="{{ campo.nombre }}{{ sufijo | default('') }}"
+    name="{{ campo.nombre }}"
+    value="{{ valores.get(campo.nombre, '') }}"
+    {% if campo.tipo == "texto" %}
+    type="text" maxlength="{{ campo.largo_max }}" placeholder="{{ campo.marcador }}"
+    {% elif campo.tipo == "fecha" %}
+    type="date"
+    {% else %}
+    type="number" inputmode="decimal" step="any"
+    {% if marcadores is defined and marcadores.get(campo.nombre) is not none %}placeholder="General: {{ marcadores.get(campo.nombre) }}"{% endif %}
+    {% endif %}
+    {% if error %}aria-invalid="true" aria-describedby="{{ campo.nombre }}-error"{% endif %}
+    {% if campo.obligatorio %}required{% endif %}>
+  {% endif %}
+  {% if error %}
+  <span class="campo__error" id="{{ campo.nombre }}-error">{{ error }}</span>
+  {% elif campo.ayuda %}
+  <span class="campo__ayuda">{{ campo.ayuda }}</span>
+  {% endif %}
+</div>

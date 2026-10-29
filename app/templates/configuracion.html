@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block titulo %}Configuración · SALVAMED{% endblock %}
+{% block contenido %}
+<div class="titulo-pagina">
+  <div>
+    <h1>Configuración</h1>
+    <p class="sutil">Parámetros administrativos que revisa el encargado. Los resultados (μD, R, Q…) los calcula el sistema.</p>
+  </div>
+  <div class="acciones"><a class="boton" href="/importar">Importar datos</a></div>
+</div>
+
+{% if mensaje %}<div class="aviso aviso--exito" role="status">{{ mensaje }}</div>{% endif %}
+{% if errores %}<div class="aviso aviso--error" role="alert">Revisa los datos marcados en rojo.</div>{% endif %}
+
+<form class="formulario formulario--ancho" method="post" action="/configuracion" novalidate data-una-vez>
+  {% for grupo in grupos %}
+  <fieldset class="grupo">
+    <legend>{{ grupo.titulo }}</legend>
+    <p class="sutil grupo__descripcion">{{ grupo.descripcion }}</p>
+    {% if loop.first %}
+    <div class="dias-semana{% if errores.get('dias_semana') %} campo--error{% endif %}">
+      <span class="campo__etiqueta">Días que abre</span>
+      {% for nombre in dias %}
+      <label class="casilla"><input type="checkbox" name="dia_{{ loop.index0 }}" value="1" {% if cfg.dias_semana[loop.index0] == "1" %}checked{% endif %}> {{ nombre }}</label>
+      {% endfor %}
+      {% if errores.get('dias_semana') %}<span class="campo__error">{{ errores.dias_semana }}</span>{% endif %}
+    </div>
+    {% endif %}
+    <div class="grupo__campos">
+      {% for campo in grupo.campos %}{% include "_campo.html" %}{% endfor %}
+    </div>
+  </fieldset>
+  {% endfor %}
+  <div class="acciones"><button class="boton boton--primario" type="submit">Guardar configuración</button></div>
+</form>
+
+<section class="panel" id="proveedores" style="margin-top:22px">
+  <h2>Proveedores</h2>
+  <p class="sutil">Si un proveedor tiene plazo o costo de envío, se usan para sus medicamentos; si no, se usan los generales. Una compra conjunta cuenta el envío una sola vez en el dinero del pedido.</p>
+  {% for prov in proveedores %}
+  <form class="fila-proveedor" method="post" action="/proveedores/{{ prov.id }}">
+    {% set valores = valores_proveedor[prov.id] %}{% set errores = {} %}{% set sufijo = "_" ~ prov.id %}
+    {% for campo in campos_proveedor %}{% include "_campo.html" %}{% endfor %}
+    <button class="boton boton--chico" type="submit">Guardar</button>
+  </form>
+  {% endfor %}
+  <form class="fila-proveedor fila-proveedor--nuevo" method="post" action="/proveedores">
+    {% set valores = {"articulos_por_envio": "1"} %}{% set errores = {} %}{% set sufijo = "_nuevo" %}
+    {% for campo in campos_proveedor %}{% include "_campo.html" %}{% endfor %}
+    <button class="boton boton--chico" type="submit">Agregar proveedor</button>
+  </form>
+</section>
+
+<section class="panel" id="telegram">
+  <h2>Telegram</h2>
+  <dl class="cuentas cuentas--fila">
+    <div><dt>Modo</dt><dd>{{ {"simulado": "Simulado (sin Telegram real)", "polling": "Local · long polling", "webhook": "En línea · webhook"}[bot.modo] }}</dd></div>
+    <div><dt>Chats de operación</dt><dd>{{ bot.chats | join(", ") or "—" }}</dd></div>
+    <div><dt>Chats de simulación</dt><dd>{{ bot.chats_simulacion | join(", ") or "(los de operación)" }}</dd></div>
+    <div><dt>Usuarios autorizados</dt><dd>{{ bot.usuarios | join(", ") or "cualquiera del chat" }}</dd></div>
+  </dl>
+  {% if bot.modo == "simulado" %}
+  <p class="sutil">
+    Sin <code>TELEGRAM_TOKEN</code> los avisos se guardan con «transporte simulado» y se responden desde la web.
+    Para el bot real: crea un bot con @BotFather, define <code>TELEGRAM_TOKEN</code>, <code>TELEGRAM_MODO=polling</code> (local) o <code>webhook</code> (Railway)
+    y <code>TELEGRAM_CHATS</code>. Escribe /start al bot para conocer el id del chat. Ver el README.
+  </p>
+  {% endif %}
+  <h3 style="margin:14px 0 8px">Últimos avisos</h3>
+  {% include "_mensajes.html" %}
+</section>
+
+<section class="panel" id="datos">
+  <h2>Datos</h2>
+  <p>La operación arranca vacía: no se siembran ventas ni historia ficticia. La demostración se carga solo con este botón.</p>
+  <form method="post" action="/configuracion/demo" data-confirmar="Se agregará el catálogo de demostración (30 medicamentos simulados) a la operación. ¿Continuar?" data-una-vez>
+    <button class="boton {% if catalogo_vacio %}boton--primario{% endif %}" type="submit">Cargar catálogo de demostración</button>
+  </form>
+  <p class="sutil">
+    Usa <code>datos/SALVAMED en orden.csv</code>. Solo los nombres de los medicamentos están contextualizados en El Roble; existencias, plazos,
+    totales semanales y precios son simulados. Si un medicamento ya existe, no se duplica ni cambia su existencia.
+  </p>
+  {% if respaldo %}
+  <p class="sutil">Respaldo de la versión anterior en esta base: {% for tabla, filas in respaldo.items() %}<code>{{ tabla }}</code> ({{ filas }} filas){% if not loop.last %}, {% endif %}{% endfor %}. No se modifica.</p>
+  {% endif %}
+</section>
+{% endblock %}

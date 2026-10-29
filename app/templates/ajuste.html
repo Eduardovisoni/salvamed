@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block titulo %}Ajustar {{ m.nombre }} · SALVAMED{% endblock %}
+{% block contenido %}
+<div class="titulo-pagina">
+  <div>
+    <a class="volver" href="/medicamentos/{{ m.id }}">← {{ m.nombre_completo }}</a>
+    <h1>Ajustar existencia</h1>
+    <p class="sutil">Para corregir con un conteo físico. Queda un movimiento de ajuste con el motivo; el historial no se borra.</p>
+  </div>
+</div>
+{% if error %}<div class="aviso aviso--error" role="alert">{{ error }}</div>{% endif %}
+<form class="panel formulario" method="post" action="/medicamentos/{{ m.id }}/ajuste" data-una-vez>
+  <p>Existencia registrada: <strong>{{ m.existencia }} {{ m.unidad }}</strong></p>
+  <div class="grupo__campos">
+    <div class="campo">
+      <label for="existencia">Existencia contada</label>
+      <input class="campo__entrada" id="existencia" name="existencia" type="number" min="0" step="1" value="{{ valores.get('existencia', '') }}" required autofocus>
+    </div>
+    <div class="campo">
+      <label for="motivo">Motivo</label>
+      <input class="campo__entrada" id="motivo" name="motivo" maxlength="200" value="{{ valores.get('motivo', '') }}" required placeholder="Ej. Conteo físico del viernes, 2 unidades vencidas">
+    </div>
+  </div>
+  <div class="acciones"><button class="boton boton--primario" type="submit">Registrar ajuste</button></div>
+</form>
+{% endblock %}

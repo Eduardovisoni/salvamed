@@ -4,13 +4,14 @@
 <div class="titulo-pagina">
   <div>
     {% if medicamento %}
-    <a class="volver" href="/medicamentos/{{ medicamento.id }}">← {{ medicamento.nombre }}</a>
+    <a class="volver" href="/medicamentos/{{ medicamento.id }}">← {{ medicamento.nombre_completo }}</a>
     <h1>Editar medicamento</h1>
+    <p class="sutil">La existencia no se edita aquí: usa «Ajustar existencia» para que quede el movimiento con su motivo.</p>
     {% else %}
-    <a class="volver" href="/medicamentos">← Medicamentos</a>
+    <a class="volver" href="/medicamentos">← Inventario</a>
     <h1>Agregar medicamento</h1>
+    <p class="sutil">Solo el nombre y la unidad son obligatorios. Lo que falte queda como pendiente y el plan se calcula cuando haya datos.</p>
     {% endif %}
-    <p class="sutil">Con estos datos SALVAMED calcula el plan de inventario de la clase 12.</p>
   </div>
 </div>
 
@@ -18,47 +19,30 @@
 <div class="aviso aviso--error" role="alert">Revisa los datos marcados en rojo.</div>
 {% endif %}
 
-<form class="formulario" method="post" action="{% if medicamento %}/medicamentos/{{ medicamento.id }}{% else %}/medicamentos{% endif %}" novalidate>
+{% set marcadores = {
+  "nivel_servicio": cfg.nivel_servicio | corto,
+  "tasa_mantenimiento": (cfg.tasa_mantenimiento * 100) | corto,
+  "costo_pedido": cfg.costo_pedido | corto,
+  "tiempo_entrega": cfg.tiempo_entrega | corto,
+  "dias_operacion_anio": cfg.dias_operacion_anio,
+} %}
+
+<form class="formulario" method="post" action="{% if medicamento %}/medicamentos/{{ medicamento.id }}{% else %}/medicamentos{% endif %}" novalidate data-una-vez>
   {% for grupo in grupos %}
-  <fieldset class="grupo">
+  <fieldset class="grupo{% if 'Excepciones' in grupo.titulo %} grupo--plegable{% endif %}">
     <legend>{{ grupo.titulo }}</legend>
     <p class="sutil grupo__descripcion">{{ grupo.descripcion }}</p>
     <div class="grupo__campos">
       {% for campo in grupo.campos %}
-      {% set error = errores.get(campo.nombre) %}
-      <div class="campo{% if error %} campo--error{% endif %}">
-        <label for="{{ campo.nombre }}">
-          {{ campo.etiqueta }}
-          {% if campo.simbolo %}<span class="simbolo">{{ campo.simbolo }}</span>{% endif %}
-        </label>
-        <input
-          class="campo__entrada"
-          id="{{ campo.nombre }}"
-          name="{{ campo.nombre }}"
-          value="{{ valores.get(campo.nombre, '') }}"
-          {% if campo.texto %}
-          type="text" maxlength="{{ campo.largo_max }}" placeholder="{{ campo.marcador }}"
-          {% else %}
-          type="number" inputmode="decimal" step="{{ campo.paso }}"
-          {% if campo.minimo is not none %}min="{{ campo.minimo }}"{% endif %}
-          {% if campo.maximo is not none and campo.maximo_incluido %}max="{{ campo.maximo }}"{% endif %}
-          {% endif %}
-          {% if error %}aria-invalid="true" aria-describedby="{{ campo.nombre }}-error"{% endif %}
-          required>
-        {% if error %}
-        <span class="campo__error" id="{{ campo.nombre }}-error">{{ error }}</span>
-        {% elif campo.ayuda %}
-        <span class="campo__ayuda">{{ campo.ayuda }}</span>
-        {% endif %}
-      </div>
+      {% include "_campo.html" %}
       {% endfor %}
     </div>
   </fieldset>
   {% endfor %}
 
   <div class="acciones">
-    <button class="boton boton--primario" type="submit">{% if medicamento %}Guardar cambios{% else %}Guardar y calcular{% endif %}</button>
-    <a class="boton" href="{% if medicamento %}/medicamentos/{{ medicamento.id }}{% else %}/{% endif %}">Cancelar</a>
+    <button class="boton boton--primario" type="submit">{% if medicamento %}Guardar cambios{% else %}Guardar{% endif %}</button>
+    <a class="boton" href="{% if medicamento %}/medicamentos/{{ medicamento.id }}{% else %}/medicamentos{% endif %}">Cancelar</a>
   </div>
 </form>
 {% endblock %}
