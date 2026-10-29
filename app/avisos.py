@@ -62,7 +62,7 @@ def texto_aumento(e) -> str:
     partes = [
         _encabezado(m.corrida_id),
         f"📈 Aumento de consumo · {m.nombre_completo}",
-        f"Últimos {a.dias_recientes} días: {_n(a.reciente, 2)}/día vs {_n(a.anterior, 2)}/día antes (×{a.razon:.2f}).",
+        f"Últimos {a.dias_recientes} días: {_n(a.reciente, 2)}/día vs {_n(a.anterior, 2)}/día antes (×{a.razon:.2f}, z = {a.z:.1f}).",
     ]
     if p:
         partes += [

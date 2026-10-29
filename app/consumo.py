@@ -135,15 +135,22 @@ class Aumento:
     reciente: float
     anterior: float
     razon: float
+    z: float
     dias_recientes: int
     dias_anteriores: int
+
+
+Z_AUMENTO = 3.0
 
 
 def aumento_de(consumo: Consumo, umbral: float = 1.5, recientes: int = 7, minimo_anterior: int = 14) -> Aumento | None:
     """Compara el promedio de los últimos 7 días completos con el de los días anteriores.
 
-    Es una comparación simple y explicable, no un diagnóstico: con menos de 14
-    días anteriores no se evalúa, y un pico genuino no se elimina.
+    Avisa si el promedio reciente es al menos `umbral` veces el anterior y la
+    diferencia es de 3 errores estándar o más: z = (reciente − anterior) /
+    (s_anterior · √(1/7 + 1/n)). Es una prueba simple y explicable, no un
+    diagnóstico: con menos de 14 días anteriores no se evalúa, con pocas ventas
+    puede haber falsas alarmas, y un pico genuino no se elimina.
     """
     if consumo.base != "diaria":
         return None
@@ -151,10 +158,13 @@ def aumento_de(consumo: Consumo, umbral: float = 1.5, recientes: int = 7, minimo
     if len(valores) < recientes + minimo_anterior:
         return None
     reciente = mean(valores[-recientes:])
-    anterior = mean(valores[:-recientes])
+    previos = valores[:-recientes]
+    anterior = mean(previos)
     if anterior <= 0:
         return None
     razon = reciente / anterior
-    if razon < umbral:
+    desviacion = stdev(previos)
+    z = (reciente - anterior) / (desviacion * sqrt(1 / recientes + 1 / len(previos))) if desviacion > 0 else float("inf")
+    if razon < umbral or z < Z_AUMENTO:
         return None
-    return Aumento(reciente, anterior, razon, recientes, len(valores) - recientes)
+    return Aumento(reciente, anterior, razon, z, recientes, len(previos))

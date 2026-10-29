@@ -1,58 +1,143 @@
 # SALVAMED
 
-Sistema de apoyo para prevenir el desabastecimiento de medicamentos en el Centro Médico El Roble.
-Proyecto final de Investigación de Operaciones (UMG, sección B).
+Apoyo para anticipar la reposición de medicamentos en la farmacia del Centro Médico El Roble.
+Proyecto final de Investigación de Operaciones (Universidad Mariano Gálvez, sección B).
 
-Para cada medicamento aplica el **modelo estocástico de inventario con revisión continua** (clase 12):
-la demanda diaria es variable (distribución normal) y el tiempo de entrega es constante.
+Hoy el aviso de que algo se está acabando pasa de persona en persona hasta llegar al encargado de compras.
+SALVAMED detecta la necesidad con el **modelo estocástico de inventario de revisión continua (clase 12)**,
+manda el aviso **directo por Telegram** al encargado y registra su respuesta y la recepción del pedido.
+El encargado sigue comprando por su canal habitual: el botón del bot solo registra que lo hizo.
 
-| Inciso | Fórmula |
-| --- | --- |
-| a) Cantidad económica de pedido | Q = √(2DS / H) |
-| b) Punto de reorden | σL = √(L · σD²), R = μD · L + Z · σL |
-| c) Número de pedidos por año | N = D / Q |
-| d) Tiempo de reabastecimiento | T = Q / D × días hábiles |
-| e) Costo total del inventario | CT = (D / Q) · S + (Q / 2) · H |
-| f) Inventario de seguridad | IS = R − L · μD |
-| g) Costo de mantenimiento del IS | H_IS = H · IS |
+Una sola aplicación con dos modos separados:
 
-Con D = μD × días hábiles y Z según la probabilidad de servicio. El ejemplo del televisor Sony de la
-clase da los mismos resultados (Q 540.37, R 339.27, CT 270.19, IS 59.27); está en `tests/test_modelo.py`.
+| Modo | Para qué | Datos |
+| --- | --- | --- |
+| **Operación** | Venta y cobro, inventario, pedidos, recepción, dinero | Arranca vacía. Se carga con el formulario, la importación o el botón de demostración |
+| **Simulación** | Farmacia en tiempo acelerado para explicar el modelo y demostrar el flujo con Telegram | Corridas con semilla; nunca tocan la operación |
 
-## μD y σD salen de las salidas
+Más detalle:
+- [docs/modelo_y_supuestos.md](docs/modelo_y_supuestos.md): fórmulas, D, S, H, L, nivel de servicio, supuestos y límites.
+- [docs/guion_demostracion.md](docs/guion_demostracion.md): guion corto para la exposición.
 
-Cada salida de bodega se registra. Con ellas se suma lo que salió cada día (hora de Guatemala) en los
-últimos 30 días, contando hoy y contando como 0 los días sin salidas: μD es el promedio de esos totales
-y σD su desviación estándar muestral. Así cada salida baja la existencia y también mueve R, Q e IS.
+## Correrlo en Windows (PowerShell)
 
-Un medicamento recién agregado usa el μD y σD estimados del formulario hasta tener 7 días de historial.
+Requiere Python 3.13 o más nuevo.
 
-## Pantallas
-
-1. **Registrar salida** (pantalla principal): el resumen del semáforo (pedir ya, pedir pronto, abastecidos y
-   costo anual) y el formulario para anotar lo que sale de bodega. Muestra el antes y el ahora de la existencia,
-   μD, σD, R, Q, IS y el estado. La última salida se puede deshacer.
-2. **Medicamentos**: la tabla con el plan de cada uno, buscador y filtros por estado.
-3. **Agregar o editar**: los datos de cada medicamento (L, S, H, probabilidad de servicio y el consumo estimado).
-4. **Detalle**: registrar salida o recibir pedido, la gráfica del consumo diario, el plan completo inciso por
-   inciso, la política del inventario y el historial de movimientos.
-
-Los 30 medicamentos iniciales usan datos simulados (consumo, costos en quetzales y existencias) y arrancan con
-30 días de salidas simuladas.
-
-## Correrlo en la computadora
-
-```bash
-python3 -m venv .venv
-.venv/bin/pip install -r requirements-dev.txt
-.venv/bin/python -m app
+```powershell
+py -3.13 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements-dev.txt
+python -m app
 ```
 
-Abre http://localhost:8000. Sin `DATABASE_URL` usa un archivo SQLite (`salvamed.db`).
+Abre http://localhost:8000. Sin `DATABASE_URL` usa el archivo `salvamed.db` (SQLite) en la carpeta del proyecto.
+Si PowerShell no deja activar el entorno, usa `.\.venv\Scripts\python.exe -m app` sin activarlo.
 
-Pruebas: `.venv/bin/python -m pytest -q`
+Pruebas:
 
-## Railway
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+```
 
-Usa el Postgres de Railway a través de la variable `DATABASE_URL`. El arranque y la revisión de
-salud (`/salud`) están en `railway.json`. La tabla y los datos iniciales se crean solos la primera vez.
+Para regenerar la plantilla y el ejemplo de importación (`datos/`):
+
+```powershell
+.\.venv\Scripts\python.exe -m app.plantilla
+```
+
+## Variables de entorno
+
+Ninguna es obligatoria para usarla en la computadora. Ningún secreto va en el código ni en Git.
+
+| Variable | Para qué |
+| --- | --- |
+| `DATABASE_URL` | Postgres (Railway la pone sola). Sin ella, SQLite local |
+| `SALVAMED_CLAVE` | Clave para entrar. **Obligatoria en línea**: sin ella la app en Railway queda en solo lectura |
+| `SALVAMED_URL_PUBLICA` | `https://…` de la app; se usa para el webhook y el botón «Ver detalle» |
+| `TELEGRAM_TOKEN` | Token del bot (de @BotFather) |
+| `TELEGRAM_MODO` | `polling` (en la computadora), `webhook` (en Railway) o `simulado`. Sin token siempre es `simulado` |
+| `TELEGRAM_CHATS` | IDs de chat que reciben los avisos de operación, separados por coma |
+| `TELEGRAM_CHATS_SIMULACION` | Chats para los avisos de la simulación (si no, usa `TELEGRAM_CHATS`) |
+| `TELEGRAM_USUARIOS` | IDs de usuario que pueden pulsar los botones (vacío: cualquiera del chat autorizado) |
+| `TELEGRAM_SECRETO_WEBHOOK` | Texto secreto que Telegram envía en cada llamada al webhook |
+
+En PowerShell las variables se ponen así, solo para esa ventana:
+
+```powershell
+$env:SALVAMED_CLAVE = "una-clave-larga"
+```
+
+## Telegram
+
+Sin token, los avisos quedan guardados con «transporte simulado» y se responden desde la web (en la pantalla del
+pedido o en la simulación). Eso basta para probar todo el flujo sin internet, pero **no** demuestra el bot real.
+
+### Probar el bot real en la computadora (long polling)
+
+Usa un **bot de pruebas**, distinto del de Railway. Si los dos usan el mismo bot, se quitan las actualizaciones
+entre sí (SALVAMED no hace polling si detecta que el bot tiene un webhook activo).
+
+1. En Telegram, habla con @BotFather, envía `/newbot` y guarda el token.
+2. Arranca la app con el bot:
+   ```powershell
+   $env:TELEGRAM_TOKEN = "<token del bot de pruebas>"
+   $env:TELEGRAM_MODO = "polling"
+   python -m app
+   ```
+3. Escríbele `/start` al bot (o agrégalo a un grupo y escribe `/start` ahí). Te responde con el id del chat.
+4. Detén la app (Ctrl+C), define el chat y vuelve a arrancar:
+   ```powershell
+   $env:TELEGRAM_CHATS = "<id del chat>"
+   python -m app
+   ```
+5. En **Simulación**, empieza una corrida y dale ▶. Cuando un medicamento llegue a su punto de reorden, el aviso llega
+   al chat. Al pulsar **✅ Pedido realizado** la corrida se reanuda sola.
+
+### En Railway (webhook)
+
+1. Crea otro bot para producción (o usa el de pruebas solo si ya no lo usas en local).
+2. En las variables del servicio: `TELEGRAM_TOKEN`, `TELEGRAM_MODO=webhook`, `TELEGRAM_SECRETO_WEBHOOK` (un texto
+   aleatorio), `SALVAMED_URL_PUBLICA=https://salvamed-production.up.railway.app`, `TELEGRAM_CHATS` y `SALVAMED_CLAVE`.
+3. Al arrancar, la app registra el webhook `…/telegram/webhook` con el secreto. Cada botón valida chat, usuario,
+   pedido y corrida, y se procesa una sola vez.
+
+Si el envío falla, la venta o el pedido no se deshacen: el mensaje queda con su error y se reintenta con espera
+creciente (hasta 5 veces; después se puede reintentar desde la pantalla del pedido).
+
+## Railway y la base de datos
+
+El arranque (`python -m app`) y la revisión de salud (`/salud`) están en `railway.json`. Railway puede desplegar
+solo al recibir cambios en la rama conectada: esta versión **no se ha subido ni desplegado**.
+
+Las tablas de la versión anterior (`medicamentos`, `movimientos`) **no se modifican ni se borran**: la versión 2 crea
+tablas nuevas con otros nombres (ver [app/migraciones.py](app/migraciones.py)) y la operación arranca vacía. Antes de
+desplegar conviene sacar un respaldo:
+
+```powershell
+pg_dump "$env:DATABASE_URL" > respaldo.sql
+```
+
+## Importar datos
+
+**Configuración → Importar datos** acepta `.xlsx`, `.csv` y `.tsv`. Primero se ve una vista previa con el mapeo de
+columnas, los errores y la procedencia (archivo, hoja y fila); nada se guarda hasta confirmar. Reimportar no duplica
+medicamentos ni historia, y no cambia existencias salvo que se marque registrar un ajuste.
+
+- `datos/plantilla_salvamed.xlsx`: plantilla vacía (catálogo, historial diario y configuración).
+- `datos/ejemplo_simulado.xlsx`: 8 medicamentos con 45 días de ventas **generadas** (semilla 2026). Todo es simulado.
+- `datos/SALVAMED en orden.csv`: el archivo del grupo. Es texto separado por tabulaciones, en cp1252. Sus `sem_1`…`sem_8`
+  se guardan como totales semanales; no se convierten en ventas diarias.
+
+## Estructura
+
+| Archivo | Qué hace |
+| --- | --- |
+| `app/modelo.py` | Fórmulas de la clase 12 |
+| `app/consumo.py` | μD y σD con días completos; aumento de consumo |
+| `app/planificacion.py` | Parámetros con su fuente, plan y estado de cada medicamento |
+| `app/inventario.py` | Alta, venta, anulación, ajuste y recepción (siempre con movimientos) |
+| `app/pedidos.py` | Pedidos, posición de inventario y avisos de reposición |
+| `app/telegram.py`, `app/despacho.py` | Bot, bandeja de salida y tareas de fondo |
+| `app/simulacion.py` | Reloj virtual, escenarios, pausa de exposición y recepción simulada |
+| `app/importacion.py`, `app/plantilla.py` | Importación y plantillas |
+| `app/seguridad.py` | Clave de acceso |

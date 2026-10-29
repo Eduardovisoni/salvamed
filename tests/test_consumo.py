@@ -89,3 +89,10 @@ def test_aumento_compara_la_ultima_semana_con_lo_anterior():
 def test_sin_historia_suficiente_no_se_evalua_el_aumento():
     ventas = {_dia(i): (12 if i <= 7 else 5) for i in range(1, 15)}
     assert aumento_de(consumo_de(ventas, {}, [], _dia(14), HOY)) is None
+
+
+def test_un_aumento_que_cabe_en_el_ruido_no_avisa():
+    ruido = [2, 9, 3, 8, 1, 10, 4] * 3
+    ventas = {_dia(i): (8 if i <= 7 else ruido[i - 8]) for i in range(1, 29)}
+    c = consumo_de(ventas, {}, [], _dia(28), HOY)
+    assert aumento_de(c, umbral=1.3) is None

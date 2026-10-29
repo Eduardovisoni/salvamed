@@ -46,7 +46,7 @@
       </table>
     </div>
     <div class="carrito__total">
-      <span>Valor estimado del pedido (sin envío) · envío una sola vez: {{ pedido.costo_envio | dinero }}</span>
+      <span>Valor estimado: {{ valor | dinero }} en medicamentos + {{ pedido.costo_envio | dinero }} de envío (una sola vez)</span>
       <strong>{{ (valor + pedido.costo_envio) | dinero }}</strong>
     </div>
     {% if pedido.estado in ("pendiente", "realizado") %}

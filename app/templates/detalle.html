@@ -74,7 +74,7 @@
 {% endfor %}
 {% if e.aumento %}
 <div class="aviso aviso--pronto" role="status">
-  📈 Aumento de consumo: los últimos {{ e.aumento.dias_recientes }} días promedian {{ e.aumento.reciente | num(2) }}/día contra {{ e.aumento.anterior | num(2) }}/día antes (×{{ e.aumento.razon | num(2) }}).
+  📈 Aumento de consumo: los últimos {{ e.aumento.dias_recientes }} días promedian {{ e.aumento.reciente | num(2) }}/día contra {{ e.aumento.anterior | num(2) }}/día antes (×{{ e.aumento.razon | num(2) }}; la diferencia es de {{ e.aumento.z | num(1) }} errores estándar).
   {% if p %}Consumo previsto en L: {{ e.consumo_en_L | num(1) }} · proyección anual D: {{ p.D | entero }} · R {{ p.R | num(1) }} · IS {{ p.IS | num(1) }} · sugerido {{ e.sugerida }}.{% endif %}
   Es una comparación simple de promedios; no indica la causa.
 </div>

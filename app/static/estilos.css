@@ -500,7 +500,8 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: 0.85em; backgr
 .dias-semana { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
 .campo__etiqueta { font-weight: 600; font-size: 0.9rem; }
 .fila-proveedor { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)) auto; gap: 10px; align-items: end; padding: 12px 0; border-bottom: 1px solid var(--borde); }
-.fila-proveedor .campo__ayuda { display: none; }
+.fila-proveedor .campo__ayuda, .fila-proveedor label .sutil { display: none; }
+.fila-proveedor label { min-height: 2.6em; align-items: flex-end; }
 .fila-proveedor--nuevo { border-bottom: 0; }
 .mapeo { margin: 8px 0 16px; }
 
@@ -531,6 +532,7 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: 0.85em; backgr
 .cuentas__total dd { color: var(--bien); font-size: 1.1rem; }
 .cuentas__alerta dd { color: var(--pedir); }
 .cuentas--fila { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.cuentas--fila div { flex-direction: column; gap: 2px; }
 
 /* Pedidos */
 .pedido-estado { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; border: 1px solid; vertical-align: middle; }
