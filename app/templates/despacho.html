@@ -99,14 +99,24 @@
 </form>
 
 <section class="panel panel--compacto">
-  <h2>Últimos despachos</h2>
+  <div class="panel__cabeza">
+    <h2>Últimos despachos</h2>
+    <div class="acciones">
+      <span class="sutil" id="actualizado" aria-live="polite"></span>
+      <button type="button" class="boton boton--chico" id="recargar-despachos">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+        Actualizar
+      </button>
+    </div>
+  </div>
+  <div id="ultimos-despachos">
   {% if recientes %}
   <div class="tabla-envoltura tabla-envoltura--plana">
     <table class="tabla tabla--compacta tabla--densa">
       <thead><tr><th>#</th><th>Fecha</th><th>Servicio</th><th>Estado</th><th></th></tr></thead>
       <tbody>
         {% for d in recientes %}
-        <tr>
+        <tr data-id="{{ d.id }}">
           <td>{{ d.id }}</td>
           <td class="num-izq">{{ d.fecha | fecha }}</td>
           <td>{{ d.servicio }}</td>
@@ -120,6 +130,7 @@
   {% else %}
   <p class="vacio">Todavía no hay despachos.</p>
   {% endif %}
+  </div>
 </section>
 {% endblock %}
 
@@ -306,6 +317,37 @@
     previo.forEach(function (l) { if (porId(l.id)) lista.push({ id: l.id, cantidad: l.cantidad }); });
     if (agregar && porId(agregar)) sumar(agregar, 1);
     pintarLista();
+  })();
+
+  (function () {
+    var boton = document.getElementById("recargar-despachos");
+    var nota = document.getElementById("actualizado");
+
+    function ids() {
+      return Array.prototype.map.call(document.querySelectorAll("#ultimos-despachos tr[data-id]"), function (tr) { return tr.dataset.id; });
+    }
+
+    boton.addEventListener("click", function () {
+      var antes = ids();
+      boton.disabled = true;
+      boton.classList.add("boton--cargando");
+      fetch("/", { cache: "no-store" })
+        .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
+        .then(function (html) {
+          var doc = new DOMParser().parseFromString(html, "text/html");
+          var lista = doc.getElementById("ultimos-despachos");
+          var resumen = doc.querySelector(".resumen");
+          if (!lista || !resumen) { location.reload(); return; }
+          document.getElementById("ultimos-despachos").innerHTML = lista.innerHTML;
+          document.querySelector(".resumen").innerHTML = resumen.innerHTML;
+          document.querySelectorAll("#ultimos-despachos tr[data-id]").forEach(function (tr) {
+            if (antes.indexOf(tr.dataset.id) === -1) tr.classList.add("fila--nueva");
+          });
+          nota.textContent = "Actualizado " + new Date().toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "America/Guatemala" });
+        })
+        .catch(function () { nota.textContent = "No se pudo actualizar"; })
+        .then(function () { boton.disabled = false; boton.classList.remove("boton--cargando"); });
+    });
   })();
 </script>
 {% endblock %}

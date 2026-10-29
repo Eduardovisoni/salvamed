@@ -644,6 +644,10 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: 0.85em; backgr
 .despacho .carrito .carrito__cantidad { background: var(--superficie); }
 .panel--compacto { padding: 14px 20px; margin-bottom: 12px; }
 .panel--compacto > h2 { margin-bottom: 8px; }
+.panel__cabeza { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
+.panel__cabeza h2 { margin: 0; }
+.panel__cabeza .sutil { font-size: 0.775rem; }
+.boton--cargando svg { animation: girar 0.8s linear infinite; }
 .panel--compacto .tabla-envoltura--plana { margin: 0 -20px; }
 .panel--compacto .tabla-envoltura--plana .tabla th:first-child, .panel--compacto .tabla-envoltura--plana .tabla td:first-child { padding-left: 20px; }
 .panel--compacto .tabla-envoltura--plana .tabla th:last-child, .panel--compacto .tabla-envoltura--plana .tabla td:last-child { padding-right: 20px; }
