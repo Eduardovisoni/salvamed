@@ -80,12 +80,16 @@ GRUPOS_MEDICAMENTO = (
 GRUPOS_CONFIGURACION = (
     Grupo(
         "Calendario",
-        "El sanatorio opera 24 horas todos los días (TuSalud y Facebook). Si un servicio cerrara algún día, A y L deben contar solo días de operación.",
+        "Le dice al sistema cuándo trabaja la farmacia. Con esto pasa la demanda de un día a la de un año "
+        "(D = μD × A) y sabe qué días contar al sacar el promedio de consumo. El sanatorio atiende las 24 horas, "
+        "todos los días.",
         (
-            Campo("dias_operacion_anio", "Días de operación al año", simbolo="A", tipo="entero", obligatorio=True, minimo=1, maximo=366),
+            Campo("dias_operacion_anio", "Días de operación al año", simbolo="A", tipo="entero", obligatorio=True, minimo=1, maximo=366,
+                  ayuda="Cuántos días al año se despacha. Se usa para la demanda anual (D = μD × A) y para T, los días entre un pedido y otro."),
             Campo("hora_apertura", "Inicio de la jornada (hora)", tipo="entero", obligatorio=True, minimo=0, maximo=23,
-                  ayuda="24 horas: de 0 a 24."),
-            Campo("hora_cierre", "Fin de la jornada (hora)", tipo="entero", obligatorio=True, minimo=1, maximo=24),
+                  ayuda="Hora en que empieza el día de trabajo (0 = medianoche). Si un medicamento se da de alta después de esta hora, su consumo se empieza a contar al día siguiente."),
+            Campo("hora_cierre", "Fin de la jornada (hora)", tipo="entero", obligatorio=True, minimo=1, maximo=24,
+                  ayuda="Hora en que termina (24 = medianoche). La simulación reparte los pedidos de los servicios dentro de este horario."),
         ),
     ),
     Grupo(
@@ -104,11 +108,15 @@ GRUPOS_CONFIGURACION = (
     ),
     Grupo(
         "Estimación",
-        "Cómo se calcula el consumo con los despachos.",
+        "Aquí se decide cómo el sistema saca μD (cuánto se consume en promedio por día) y σD (cuánto varía de un "
+        "día a otro) a partir de lo que se despacha, y cuándo avisa. Con esos dos datos se calculan R, IS y Q de la clase 12.",
         (
-            Campo("ventana_dias", "Ventana de días completos", tipo="entero", obligatorio=True, minimo=2, maximo=365),
-            Campo("dias_aviso", "Avisar «pedir pronto» con días de anticipación", tipo="entero", obligatorio=True, minimo=0, maximo=60),
-            Campo("aumento_umbral", "Aviso de aumento si el consumo reciente es × veces el anterior", obligatorio=True, minimo=1, minimo_incluido=False, maximo=10),
+            Campo("ventana_dias", "Ventana de días completos", tipo="entero", obligatorio=True, minimo=2, maximo=365,
+                  ayuda="Cuántos días hacia atrás se miran para sacar μD y σD. Hoy no cuenta porque el día no ha terminado. Más días dan un promedio más estable; menos días reaccionan más rápido a los cambios."),
+            Campo("dias_aviso", "Avisar «pedir pronto» con días de anticipación", tipo="entero", obligatorio=True, minimo=0, maximo=60,
+                  ayuda="Cuántos días antes de llegar al punto de reorden (R) el medicamento pasa a «Pedir pronto», para preparar el pedido con tiempo."),
+            Campo("aumento_umbral", "Aviso de aumento si el consumo reciente es × veces el anterior", obligatorio=True, minimo=1, minimo_incluido=False, maximo=10,
+                  ayuda="Avisa si en los últimos 7 días se consumió esta cantidad de veces más que antes (1.5 = 50 % más) y el cambio es claro, no casualidad. Sirve para notar que μD subió antes de que el medicamento se acabe."),
         ),
     ),
 )

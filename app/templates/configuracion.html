@@ -16,13 +16,14 @@
   {% for grupo in grupos %}
   <fieldset class="grupo">
     <legend>{{ grupo.titulo }}</legend>
+    <p class="sutil grupo__descripcion">{{ grupo.descripcion }}</p>
     {% if loop.first %}
     <div class="dias-semana{% if errores.get('dias_semana') %} campo--error{% endif %}">
       <span class="campo__etiqueta">Días de operación</span>
       {% for nombre in dias %}
       <label class="casilla"><input type="checkbox" name="dia_{{ loop.index0 }}" value="1" {% if cfg.dias_semana[loop.index0] == "1" %}checked{% endif %}> {{ nombre }}</label>
       {% endfor %}
-      {% if errores.get('dias_semana') %}<span class="campo__error">{{ errores.dias_semana }}</span>{% endif %}
+      {% if errores.get('dias_semana') %}<span class="campo__error">{{ errores.dias_semana }}</span>{% else %}<span class="campo__ayuda dias-semana__ayuda">Los días sin marcar no se cuentan al sacar el promedio de consumo (μD).</span>{% endif %}
     </div>
     {% endif %}
     <div class="grupo__campos">
@@ -32,10 +33,14 @@
   {% endfor %}
   <fieldset class="grupo">
     <legend>Servicios que reciben medicamentos</legend>
-    <p class="sutil grupo__descripcion">Uno por línea.</p>
+    <p class="sutil grupo__descripcion">Las áreas del sanatorio a las que la farmacia entrega medicamentos. Son las opciones de «Servicio que recibe» en el despacho.</p>
     <div class="campo{% if errores.get('servicios') %} campo--error{% endif %}">
-      <label for="servicios">Servicios</label>
-      <textarea class="campo__entrada" id="servicios" name="servicios" rows="7">{{ valores.get("servicios", "") }}</textarea>
+      <textarea id="servicios" name="servicios" hidden>{{ valores.get("servicios", "") }}</textarea>
+      <ul class="opciones" id="servicios-lista" aria-label="Servicios"></ul>
+      <div class="opciones__agregar">
+        <input class="campo__entrada" id="servicio-nuevo" maxlength="60" autocomplete="off" placeholder="Nuevo servicio, ej. Pediatría" aria-label="Nuevo servicio">
+        <button type="button" class="boton" id="servicio-agregar">Agregar</button>
+      </div>
       {% if errores.get('servicios') %}<span class="campo__error">{{ errores.servicios }}</span>{% endif %}
     </div>
   </fieldset>
@@ -83,4 +88,46 @@
   </form>
   <p class="sutil" style="margin-bottom:0">Si un medicamento ya existe, no se duplica ni cambia su existencia.</p>
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    var campo = document.getElementById("servicios");
+    var lista = document.getElementById("servicios-lista");
+    var nuevo = document.getElementById("servicio-nuevo");
+    var servicios = campo.value.split("\n").map(function (s) { return s.trim(); }).filter(Boolean);
+
+    function pintar(resaltar) {
+      lista.innerHTML = "";
+      servicios.forEach(function (nombre, i) {
+        var li = document.createElement("li");
+        li.className = "opcion" + (nombre === resaltar ? " opcion--nueva" : "");
+        li.innerHTML = '<span></span><button type="button">×</button>';
+        li.querySelector("span").textContent = nombre;
+        var quitar = li.querySelector("button");
+        quitar.setAttribute("aria-label", "Quitar " + nombre);
+        quitar.addEventListener("click", function () { servicios.splice(i, 1); pintar(); });
+        lista.appendChild(li);
+      });
+      campo.value = servicios.join("\n");
+    }
+
+    function agregar() {
+      var nombre = nuevo.value.trim().replace(/\s+/g, " ");
+      if (!nombre) return;
+      var repetido = servicios.find(function (s) { return s.toLowerCase() === nombre.toLowerCase(); });
+      if (!repetido) servicios.push(nombre);
+      nuevo.value = "";
+      pintar(repetido || nombre);
+      nuevo.focus();
+    }
+
+    document.getElementById("servicio-agregar").addEventListener("click", agregar);
+    nuevo.addEventListener("keydown", function (evento) {
+      if (evento.key === "Enter") { evento.preventDefault(); agregar(); }
+    });
+    pintar();
+  })();
+</script>
 {% endblock %}

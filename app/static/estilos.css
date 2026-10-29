@@ -601,6 +601,14 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: 0.85em; backgr
 .entrar h1 { font-size: 1.3rem; margin-bottom: 4px; }
 .dias-semana { display: flex; gap: 6px 16px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
 .campo__etiqueta { font-weight: 500; font-size: 0.85rem; margin-right: 4px; }
+.dias-semana__ayuda { flex-basis: 100%; margin-top: -4px; }
+.opciones { list-style: none; margin: 0 0 6px; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.opcion { display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 4px 0 12px; border: 1px solid var(--borde); border-radius: 999px; background: var(--fondo); font-size: 0.85rem; }
+.opcion button { display: grid; place-items: center; width: 24px; height: 24px; border: 0; border-radius: 50%; background: none; color: var(--tenue); font: inherit; font-size: 1rem; line-height: 1; cursor: pointer; }
+.opcion button:hover { background: var(--pedir-fondo); color: var(--pedir); }
+.opcion--nueva { animation: fila-entra 0.4s ease-out; }
+.opciones__agregar { display: flex; gap: 8px; max-width: 440px; }
+.grupo__descripcion { max-width: 760px; line-height: 1.5; }
 .fila-proveedor { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)) auto; gap: 10px; align-items: end; padding: 14px 0; border-bottom: 1px solid var(--borde); }
 .fila-proveedor .campo__ayuda, .fila-proveedor label .sutil { display: none; }
 .fila-proveedor label { min-height: 2.6em; align-items: flex-end; font-size: 0.8rem; color: var(--sutil); }
