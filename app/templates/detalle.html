@@ -9,7 +9,7 @@
   <div>
     <a class="volver" href="/medicamentos">← Inventario</a>
     <h1>{{ m.nombre }} <span class="sutil-grande">{{ m.presentacion }}</span> <span class="estado estado--{{ e.estado.clave }}">{{ e.estado.etiqueta }}</span>{% if not m.activo %} <span class="estado">Desactivado</span>{% endif %}</h1>
-    <p class="sutil">Se cuenta en {{ u }}{% if proveedor %} · proveedor {{ proveedor.nombre }}{% endif %}{% if m.sku %} · código {{ m.sku }}{% endif %} · costo de compra {{ m.costo_compra | dinero }}{% if m.origen == "importado" %} · datos importados{% endif %}</p>
+    <p class="sutil">{{ u }}{% if m.sku %} · {{ m.sku }}{% endif %}{% if proveedor %} · {{ proveedor.nombre }}{% endif %}</p>
   </div>
   <div class="acciones acciones--arriba">
     <a class="boton boton--primario" href="/?agregar={{ m.id }}">Despachar</a>
@@ -20,52 +20,53 @@
       <button class="boton" type="submit">Crear pedido</button>
     </form>
     {% endif %}
-    <a class="boton" href="/medicamentos/{{ m.id }}/editar">Editar datos</a>
-    <form method="post" action="/medicamentos/{{ m.id }}/activo">
-      <input type="hidden" name="activo" value="{{ '0' if m.activo else '1' }}">
-      <button class="boton {% if m.activo %}boton--peligro{% endif %}" type="submit">{% if m.activo %}Desactivar{% else %}Activar{% endif %}</button>
-    </form>
+    <details class="menu">
+      <summary class="boton" aria-label="Más acciones">⋯</summary>
+      <div class="menu__lista">
+        <a href="/medicamentos/{{ m.id }}/editar">Editar datos</a>
+        <form method="post" action="/medicamentos/{{ m.id }}/activo">
+          <input type="hidden" name="activo" value="{{ '0' if m.activo else '1' }}">
+          <button class="{% if m.activo %}boton--peligro{% endif %}" type="submit">{% if m.activo %}Desactivar{% else %}Activar{% endif %}</button>
+        </form>
+      </div>
+    </details>
   </div>
 </div>
 
 {% if guardado %}
-<div class="aviso aviso--exito" role="status">Datos guardados. El plan se volvió a calcular.</div>
+<div class="aviso aviso--exito" role="status">Datos guardados.</div>
 {% endif %}
 
 <section class="panel panel--estado panel--{{ e.estado.clave }}">
   <p class="panel__mensaje">
     {% if not p %}
-      Todavía no se puede calcular el plan. Falta: {{ e.pendientes | join("; ") }}.
+      Faltan datos para saber cuándo pedir: {{ e.pendientes | join("; ") }}.
     {% elif e.estado.clave == "pedir" %}
-      La posición de inventario ({{ e.posicion | entero }} = {{ e.existencia | entero }} en bodega{% if e.en_camino %} + {{ e.en_camino | entero }} en camino{% endif %}) llegó al punto de reorden ({{ p.R_pedido }}).
-      {% if e.pedido_abierto %}Hay un <a href="/pedidos/{{ e.pedido_abierto.id }}">pedido #{{ e.pedido_abierto.id }}</a> ({{ estados_pedido[e.pedido_abierto.estado] | lower }}).{% else %}Hay que pedir <strong>{{ e.sugerida | entero }} {{ u }}</strong>.{% endif %}
+      {% if e.pedido_abierto %}Hay que reponer. Ya está el <a href="/pedidos/{{ e.pedido_abierto.id }}">pedido #{{ e.pedido_abierto.id }}</a> ({{ estados_pedido[e.pedido_abierto.estado] | lower }}).{% else %}Hay que pedir {{ e.sugerida | entero }} {{ u }}.{% endif %}
     {% elif e.estado.clave == "pronto" %}
-      En unos <strong>{{ e.estado.dias_para_reorden | num(1) }} días</strong> llegará al punto de reorden ({{ p.R_pedido }} {{ u }}). Conviene preparar el pedido de {{ e.sugerida | entero }} {{ u }}.
+      En unos {{ e.estado.dias_para_reorden | num(0) }} días habrá que pedir {{ e.sugerida | entero }} {{ u }}.
     {% elif e.estado.dias_para_reorden is not none %}
-      Faltan unos <strong>{{ e.estado.dias_para_reorden | num(1) }} días</strong> para llegar al punto de reorden ({{ p.R_pedido }} {{ u }}).
+      Abastecido. Faltan unos {{ e.estado.dias_para_reorden | num(0) }} días para volver a pedir.
     {% else %}
-      No hubo despachos en la ventana: no hace falta pedir por ahora.
+      Sin despachos recientes: no hace falta pedir.
     {% endif %}
   </p>
 
   {% if p %}
   {% set escala = [p.R + e.sugerida, e.posicion, 1] | max %}
-  <div class="medidor" role="img" aria-label="Posición {{ e.posicion }} de {{ escala | entero }}; punto de reorden {{ p.R_pedido }}; inventario de seguridad {{ p.IS | entero }}">
+  <div class="medidor" role="img" aria-label="Existencia {{ e.existencia | entero }}; se pide al llegar a {{ p.R_pedido }}">
     <div class="medidor__barra">
       <div class="medidor__relleno" style="width: {{ ([e.existencia / escala * 100, 100] | min) | round(2) }}%"></div>
       {% if e.en_camino %}<div class="medidor__camino" style="left: {{ ([e.existencia / escala * 100, 100] | min) | round(2) }}%; width: {{ ([e.en_camino / escala * 100, 100] | min) | round(2) }}%"></div>{% endif %}
-      <div class="medidor__marca medidor__marca--is" style="left: {{ ([p.IS / escala * 100, 100] | min) | round(2) }}%"><span>IS {{ p.IS | entero }}</span></div>
-      <div class="medidor__marca medidor__marca--r" style="left: {{ ([p.R_pedido / escala * 100, 100] | min) | round(2) }}%"><span>R {{ p.R_pedido }}</span></div>
+      <div class="medidor__marca" style="left: {{ ([p.R_pedido / escala * 100, 100] | min) | round(2) }}%"><span>Pedir aquí</span></div>
     </div>
-    <div class="medidor__escala"><span>0</span><span>R + pedido = {{ p.R_pedido + e.sugerida }}</span></div>
   </div>
   {% endif %}
 
   <dl class="cifras">
     <div><dt>Existencia</dt><dd>{{ e.existencia | entero }}</dd></div>
     <div><dt>En camino</dt><dd>{{ e.en_camino | entero }}</dd></div>
-    <div><dt>Punto de reorden</dt><dd>{{ p.R_pedido if p else "—" }}</dd></div>
-    <div><dt>Alcanza para</dt><dd>{% if e.estado.dias_de_cobertura is not none %}{{ e.estado.dias_de_cobertura | num(1) }} días{% else %}—{% endif %}</dd></div>
+    <div><dt>Alcanza para</dt><dd>{% if e.estado.dias_de_cobertura is not none %}{{ e.estado.dias_de_cobertura | num(0) }} días{% else %}—{% endif %}</dd></div>
   </dl>
 </section>
 
@@ -74,9 +75,7 @@
 {% endfor %}
 {% if e.aumento %}
 <div class="aviso aviso--pronto" role="status">
-  📈 Aumento de consumo: los últimos {{ e.aumento.dias_recientes }} días promedian {{ e.aumento.reciente | num(2) }}/día contra {{ e.aumento.anterior | num(2) }}/día antes (×{{ e.aumento.razon | num(2) }}; la diferencia es de {{ e.aumento.z | num(1) }} errores estándar).
-  {% if p %}Consumo previsto en L: {{ e.consumo_en_L | num(1) }} · proyección anual D: {{ p.D | entero }} · R {{ p.R | num(1) }} · IS {{ p.IS | num(1) }} · sugerido {{ e.sugerida }}.{% endif %}
-  Es una comparación simple de promedios; no indica la causa.
+  El consumo subió en los últimos {{ e.aumento.dias_recientes }} días (×{{ e.aumento.razon | num(1) }}). Puede que haga falta pedir antes.
 </div>
 {% endif %}
 
@@ -84,9 +83,8 @@
   <h2>Existencias en los últimos 30 días</h2>
   {% set g = grafica %}
   <figure class="grafica grafica--alta">
-    <svg viewBox="0 0 {{ g.ancho }} {{ g.alto }}" preserveAspectRatio="none" role="img" aria-label="Existencia, punto de reorden e inventario de seguridad en el tiempo">
+    <svg viewBox="0 0 {{ g.ancho }} {{ g.alto }}" preserveAspectRatio="none" role="img" aria-label="Existencia y punto de pedido en el tiempo">
       <line class="grafica__guia" x1="0" x2="{{ g.ancho }}" y1="{{ g.y_medio }}" y2="{{ g.y_medio }}"></line>
-      <path class="grafica__is" d="{{ g.ruta_is }}"></path>
       <path class="grafica__r" d="{{ g.ruta_r }}"></path>
       <path class="grafica__existencia" d="{{ g.ruta }}"></path>
       {% for marca in g.marcas %}
@@ -95,15 +93,16 @@
     </svg>
     <figcaption class="grafica__leyenda">
       <span><i class="grafica__muestra grafica__muestra--existencia"></i>Existencia</span>
-      <span><i class="grafica__muestra grafica__muestra--r"></i>R vigente cada día</span>
-      <span><i class="grafica__muestra grafica__muestra--is"></i>IS vigente cada día</span>
-      <span><i class="grafica__muestra grafica__muestra--pedido"></i>Pedido realizado</span>
+      <span><i class="grafica__muestra grafica__muestra--r"></i>Punto de pedido</span>
+      <span><i class="grafica__muestra grafica__muestra--pedido"></i>Pedido</span>
       <span><i class="grafica__muestra grafica__muestra--recepcion"></i>Recepción</span>
-      <span class="grafica__fechas">{{ g.desde | dia }} → hoy · escala 0 a {{ g.tope | entero }}</span>
+      <span class="grafica__fechas">{{ g.desde | dia }} → hoy</span>
     </figcaption>
   </figure>
 </section>
 
+<details class="plegable">
+  <summary>Cálculo del inventario <span class="plegable__nota">consumo, parámetros y fórmulas de la clase 12</span></summary>
 <section class="panel">
   <h2>Consumo por día completo (despachos)</h2>
   <p class="sutil consumo__explicacion">
@@ -233,6 +232,8 @@
   </ol>
 </section>
 {% endif %}
+
+</details>
 
 <section class="panel">
   <h2>Pedidos</h2>

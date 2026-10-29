@@ -1,33 +1,28 @@
 {% extends "base.html" %}
 {% block titulo %}Despacho · SALVAMED{% endblock %}
 {% block contenido %}
-<div class="titulo-pagina">
+<div class="titulo-pagina titulo-pagina--compacto">
   <div>
-    <h1>Despacho a servicios</h1>
-    <p class="sutil">La farmacia interna entrega medicamentos a un servicio del sanatorio. Busca por nombre, presentación o código. No se registran datos de pacientes.</p>
+    <h1>Despacho</h1>
   </div>
 </div>
 
-<section class="resumen" aria-label="Resumen">
+<section class="resumen resumen--compacto" aria-label="Resumen">
   <a class="tarjeta tarjeta--pedir" href="/medicamentos?estado=pedir">
     <span class="tarjeta__numero">{{ conteo.pedir }}</span>
     <span class="tarjeta__texto">Pedir ya</span>
-    <span class="tarjeta__nota">Posición de inventario en el punto de reorden o debajo</span>
   </a>
   <a class="tarjeta tarjeta--pronto" href="/pedidos">
     <span class="tarjeta__numero">{{ por_gestionar }}</span>
     <span class="tarjeta__texto">Pedidos por gestionar</span>
-    <span class="tarjeta__nota">Avisos enviados que el encargado no ha confirmado</span>
   </a>
   <a class="tarjeta tarjeta--costo" href="/costos">
     <span class="tarjeta__numero">{{ hoy.numero_despachos }}</span>
-    <span class="tarjeta__texto">Despachos de hoy</span>
-    <span class="tarjeta__nota">{{ hoy.unidades }} unidades entregadas a los servicios</span>
+    <span class="tarjeta__texto">Despachos hoy</span>
   </a>
   <a class="tarjeta tarjeta--bien" href="/costos">
-    <span class="tarjeta__numero">{{ hoy.consumido | dinero }}</span>
-    <span class="tarjeta__texto">Costo de lo consumido hoy</span>
-    <span class="tarjeta__nota">Valorizado al costo promedio de compra</span>
+    <span class="tarjeta__numero">{{ hoy.unidades }}</span>
+    <span class="tarjeta__texto">Unidades entregadas hoy</span>
   </a>
 </section>
 
@@ -43,8 +38,8 @@
 </div>
 {% for pedido, lineas in nuevos_pedidos %}
 <div class="aviso aviso--pedir" role="status">
-  ⚠️ Reposición necesaria: {% for l, m in lineas %}<strong>{{ m.nombre_completo }}</strong> llegó al punto de reorden ({{ l.punto_reorden | punto_pedido }}). {% endfor %}
-  Se creó el <a href="/pedidos/{{ pedido.id }}">pedido #{{ pedido.id }}</a> y se avisó al encargado de compras.
+  {% for l, m in lineas %}<strong>{{ m.nombre_completo }}</strong>{% if not loop.last %}, {% endif %}{% endfor %} {{ "necesita" if lineas | length == 1 else "necesitan" }} reposición.
+  Se creó el <a href="/pedidos/{{ pedido.id }}">pedido #{{ pedido.id }}</a> y se avisó a compras.
 </div>
 {% endfor %}
 {% endif %}
@@ -53,59 +48,70 @@
 <div class="aviso aviso--error" role="alert">{{ error }}</div>
 {% endif %}
 
-<div class="venta">
-  <section class="panel venta__buscar">
-    <label class="oculto" for="buscar">Buscar medicamento</label>
-    <input id="buscar" class="campo__entrada venta__entrada" type="search" autocomplete="off" autofocus
-      placeholder="Escribe un nombre o un código y presiona Enter…">
-    <ul id="resultados" class="resultados" aria-live="polite"></ul>
-    <p class="vacio" {% if catalogo %}hidden{% endif %}>
-      No hay medicamentos. <a href="/medicamentos/nuevo">Agrega uno</a> o carga la demostración en <a href="/configuracion#datos">Configuración</a>.
-    </p>
-  </section>
-
-  <form class="panel venta__carrito" method="post" action="/despachos" id="form-despacho" data-una-vez>
-    <h2>Lista de despacho</h2>
-    <input type="hidden" name="token" value="{{ token }}">
+<form class="panel despacho" method="post" action="/despachos" id="form-despacho" data-una-vez>
+  <h2>Lista de despacho</h2>
+  <input type="hidden" name="token" value="{{ token }}">
+  <div class="despacho__fila">
     <div class="campo">
-      <label for="servicio">Servicio que recibe</label>
-      <select class="campo__entrada" id="servicio" name="servicio" required>
-        <option value="">Elige un servicio…</option>
-        {% for s in servicios %}<option {% if s == servicio %}selected{% endif %}>{{ s }}</option>{% endfor %}
-      </select>
+      <label for="servicio-boton">Servicio que recibe</label>
+      <div class="selector">
+        <input type="hidden" id="servicio" name="servicio" value="{{ servicio or '' }}">
+        <button type="button" id="servicio-boton" class="campo__entrada selector__boton{% if not servicio %} selector__boton--vacio{% endif %}"
+          aria-haspopup="listbox" aria-expanded="false" aria-controls="servicios">
+          <span class="selector__valor">{{ servicio or "Elige un servicio…" }}</span>
+        </button>
+        <ul id="servicios" class="selector__lista" role="listbox" aria-label="Servicios">
+          {% for s in servicios %}
+          <li id="servicio-{{ loop.index }}" class="selector__opcion" role="option" data-valor="{{ s }}" aria-selected="{{ 'true' if s == servicio else 'false' }}">{{ s }}</li>
+          {% endfor %}
+        </ul>
+      </div>
     </div>
-    <table class="tabla tabla--compacta carrito">
-      <thead><tr><th>Medicamento</th><th class="num">Hay</th><th class="num">Cantidad</th><th><span class="oculto">Quitar</span></th></tr></thead>
-      <tbody id="lineas"></tbody>
-    </table>
-    <p id="vacio" class="vacio">La lista está vacía. Una lista sin confirmar no descuenta nada.</p>
     <div class="campo">
-      <label for="nota">Nota <span class="sutil">(opcional, sin datos de pacientes)</span></label>
-      <input class="campo__entrada" id="nota" name="nota" maxlength="200" placeholder="Ej. Reposición del carro de paro">
+      <label for="buscar">Agregar medicamento</label>
+      <div class="selector">
+        <input id="buscar" class="campo__entrada" type="search" autocomplete="off" autofocus
+          role="combobox" aria-expanded="false" aria-controls="resultados" aria-autocomplete="list"
+          placeholder="Buscar por nombre o código…" {% if not catalogo %}disabled{% endif %}>
+        <ul id="resultados" class="selector__lista" role="listbox" aria-label="Medicamentos"></ul>
+      </div>
     </div>
+  </div>
+  {% if not catalogo %}
+  <p class="vacio">Sin medicamentos. <a href="/medicamentos/nuevo">Agrega uno</a> o carga la <a href="/configuracion#datos">demostración</a>.</p>
+  {% endif %}
+  <table class="tabla tabla--compacta carrito" hidden>
+    <thead><tr><th>Medicamento</th><th class="num">Disponible</th><th class="num">Cantidad</th><th><span class="oculto">Quitar</span></th></tr></thead>
+    <tbody id="lineas"></tbody>
+  </table>
+  <p id="vacio" class="vacio"{% if not catalogo %} hidden{% endif %}>Busca un medicamento y elígelo para agregarlo.</p>
+  <div class="campo">
+    <label for="nota">Nota <span class="sutil">(opcional)</span></label>
+    <input class="campo__entrada" id="nota" name="nota" maxlength="200" placeholder="Ej. Reposición del carro de paro">
+  </div>
+  <div class="despacho__pie">
     <div class="carrito__total"><span>Unidades</span><strong id="total">0</strong></div>
     <div class="acciones">
-      <button class="boton boton--primario boton--grande" type="submit" id="confirmar" disabled>Confirmar despacho</button>
       <button class="boton" type="button" id="vaciar">Vaciar</button>
+      <button class="boton boton--primario boton--grande" type="submit" id="confirmar" disabled>Confirmar despacho</button>
     </div>
-  </form>
-</div>
+  </div>
+</form>
 
-<section class="panel">
+<section class="panel panel--compacto">
   <h2>Últimos despachos</h2>
   {% if recientes %}
   <div class="tabla-envoltura tabla-envoltura--plana">
-    <table class="tabla tabla--compacta">
-      <thead><tr><th>#</th><th>Fecha</th><th>Servicio</th><th class="num">Costo</th><th>Estado</th><th></th></tr></thead>
+    <table class="tabla tabla--compacta tabla--densa">
+      <thead><tr><th>#</th><th>Fecha</th><th>Servicio</th><th>Estado</th><th></th></tr></thead>
       <tbody>
         {% for d in recientes %}
         <tr>
           <td>{{ d.id }}</td>
           <td class="num-izq">{{ d.fecha | fecha }}</td>
           <td>{{ d.servicio }}</td>
-          <td class="num">{{ d.costo_total | dinero }}</td>
           <td>{% if d.estado == "anulado" %}<span class="estado estado--pedir">Anulado</span>{% else %}<span class="estado estado--bien">Confirmado</span>{% endif %}</td>
-          <td><a href="/despachos/{{ d.id }}">Ver</a></td>
+          <td class="num"><a class="boton boton--chico" href="/despachos/{{ d.id }}">Ver</a></td>
         </tr>
         {% endfor %}
       </tbody>
@@ -124,47 +130,95 @@
     var previo = {{ lista | tojson }};
     var agregar = {{ agregar | tojson }};
     var lista = [];
+    var visibles = [];
+    var activa = -1;
+    var abierta = false;
+    var nueva = null;
     var buscar = document.getElementById("buscar");
-    var resultados = document.getElementById("resultados");
+    var opciones = document.getElementById("resultados");
+    var tabla = document.querySelector(".carrito");
     var cuerpo = document.getElementById("lineas");
     var formulario = document.getElementById("form-despacho");
     var servicio = document.getElementById("servicio");
 
-    function quitarAcentos(t) { return (t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); }
+    function quitarAcentos(t) { return (t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(); }
     function porId(id) { return catalogo.find(function (m) { return m.id === id; }); }
+    function enLista(id) { return lista.some(function (l) { return l.id === id; }); }
 
     function coincidencias(texto) {
       var t = quitarAcentos(texto.trim());
-      if (!t) return catalogo.slice(0, 8);
+      if (!t) return catalogo.slice(0, 50);
       var palabras = t.split(/\s+/);
       return catalogo.filter(function (m) {
         var todo = quitarAcentos(m.nombre + " " + m.presentacion + " " + m.sku);
         return palabras.every(function (p) { return todo.indexOf(p) !== -1; });
-      }).slice(0, 8);
+      }).slice(0, 50);
     }
 
-    function pintarResultados() {
-      resultados.innerHTML = "";
-      coincidencias(buscar.value).forEach(function (m) {
-        var li = document.createElement("li");
-        var boton = document.createElement("button");
-        boton.type = "button";
-        boton.className = "resultado-item" + (m.existencia <= 0 ? " resultado-item--agotado" : "");
-        boton.innerHTML = '<span><strong></strong> <span class="sutil"></span><span class="bloque sutil"></span></span><span class="resultado-item__precio"></span>';
-        boton.querySelector("strong").textContent = m.nombre;
-        boton.querySelectorAll(".sutil")[0].textContent = m.presentacion;
-        boton.querySelectorAll(".sutil")[1].textContent = m.unidad + (m.sku ? " · " + m.sku : "");
-        boton.querySelector(".resultado-item__precio").textContent = "Hay " + m.existencia;
-        boton.addEventListener("click", function () { sumar(m.id, 1); buscar.select(); });
-        li.appendChild(boton);
-        resultados.appendChild(li);
+    function marcar() {
+      buscar.removeAttribute("aria-activedescendant");
+      Array.prototype.forEach.call(opciones.querySelectorAll("[role=option]"), function (li, i) {
+        var si = i === activa;
+        li.classList.toggle("selector__opcion--activa", si);
+        li.setAttribute("aria-selected", si ? "true" : "false");
+        if (si) { buscar.setAttribute("aria-activedescendant", li.id); li.scrollIntoView({ block: "nearest" }); }
       });
+    }
+
+    function pintarOpciones() {
+      opciones.innerHTML = "";
+      if (!visibles.length) {
+        var nada = document.createElement("li");
+        nada.className = "selector__nada";
+        nada.textContent = "Ningún medicamento coincide.";
+        opciones.appendChild(nada);
+        return;
+      }
+      visibles.forEach(function (m, i) {
+        var li = document.createElement("li");
+        li.id = "opcion-" + m.id;
+        li.setAttribute("role", "option");
+        li.className = "selector__opcion" + (m.existencia <= 0 ? " selector__opcion--agotado" : "");
+        li.innerHTML = '<span><strong></strong> <span class="sutil"></span></span><span class="selector__hay"></span>';
+        li.querySelector("strong").textContent = m.nombre;
+        li.querySelector(".sutil").textContent = m.presentacion;
+        li.querySelector(".selector__hay").textContent =
+          (enLista(m.id) ? "En la lista · " : "") + (m.existencia <= 0 ? "Agotado" : "Hay " + m.existencia);
+        li.addEventListener("click", function () { elegir(m); });
+        li.addEventListener("mousemove", function () { if (activa !== i) { activa = i; marcar(); } });
+        opciones.appendChild(li);
+      });
+      marcar();
+    }
+
+    function abrir() {
+      visibles = coincidencias(buscar.value);
+      activa = buscar.value.trim() && visibles.length ? 0 : -1;
+      abierta = true;
+      opciones.classList.add("selector__lista--abierta");
+      buscar.setAttribute("aria-expanded", "true");
+      pintarOpciones();
+    }
+
+    function cerrar() {
+      abierta = false;
+      opciones.classList.remove("selector__lista--abierta");
+      activa = -1;
+      buscar.setAttribute("aria-expanded", "false");
+      buscar.removeAttribute("aria-activedescendant");
+    }
+
+    function elegir(m) {
+      sumar(m.id, 1);
+      buscar.value = "";
+      cerrar();
+      buscar.focus();
     }
 
     function sumar(id, cantidad) {
       if (!porId(id)) return;
       var linea = lista.find(function (l) { return l.id === id; });
-      if (linea) linea.cantidad = (parseInt(linea.cantidad, 10) || 0) + cantidad; else lista.push({ id: id, cantidad: cantidad });
+      if (linea) linea.cantidad = (parseInt(linea.cantidad, 10) || 0) + cantidad; else { lista.push({ id: id, cantidad: cantidad }); nueva = id; }
       pintarLista();
     }
 
@@ -177,6 +231,7 @@
       });
       document.getElementById("total").textContent = total;
       document.getElementById("confirmar").disabled = !valido;
+      return valido;
     }
 
     function pintarLista() {
@@ -188,7 +243,7 @@
         tr.innerHTML = '<td><strong></strong> <span class="sutil"></span><span class="bloque sutil aviso-linea"></span>' +
           '<input type="hidden" name="medicamento_id"></td><td class="num"></td>' +
           '<td class="num"><input class="campo__entrada carrito__cantidad" name="cantidad" type="number" min="1" step="1" inputmode="numeric"></td>' +
-          '<td><button type="button" class="boton boton--chico" aria-label="Quitar">×</button></td>';
+          '<td class="num"><button type="button" class="boton boton--chico" aria-label="Quitar">×</button></td>';
         tr.querySelector("strong").textContent = m.nombre;
         tr.querySelector(".sutil").textContent = m.presentacion;
         tr.querySelector(".aviso-linea").textContent = excede ? "Solo hay " + m.existencia + " " + m.unidad : "";
@@ -200,30 +255,56 @@
         entrada.addEventListener("change", pintarLista);
         tr.querySelector("button").addEventListener("click", function () { lista.splice(i, 1); pintarLista(); });
         if (excede) tr.classList.add("fila--error");
+        if (m.id === nueva) tr.classList.add("fila--nueva");
         cuerpo.appendChild(tr);
       });
-      document.getElementById("vacio").hidden = lista.length > 0;
+      nueva = null;
+      tabla.hidden = lista.length === 0;
+      document.getElementById("vacio").hidden = lista.length > 0 || catalogo.length === 0;
       revisar();
     }
 
-    buscar.addEventListener("input", pintarResultados);
+    buscar.addEventListener("input", abrir);
+    buscar.addEventListener("click", function () { if (!abierta) abrir(); });
+    buscar.addEventListener("blur", cerrar);
+    opciones.addEventListener("mousedown", function (evento) { evento.preventDefault(); });
     buscar.addEventListener("keydown", function (evento) {
+      if (evento.key === "ArrowDown") {
+        evento.preventDefault();
+        if (!abierta) abrir();
+        else if (activa < visibles.length - 1) { activa++; marcar(); }
+        return;
+      }
+      if (evento.key === "ArrowUp") {
+        evento.preventDefault();
+        if (activa > 0) { activa--; marcar(); }
+        return;
+      }
+      if (evento.key === "Escape") { cerrar(); return; }
       if (evento.key !== "Enter") return;
       evento.preventDefault();
       var texto = quitarAcentos(buscar.value.trim());
-      var exacto = catalogo.find(function (m) { return m.sku && quitarAcentos(m.sku) === texto; });
-      var encontrados = exacto ? [exacto] : coincidencias(buscar.value);
-      if (encontrados.length) { sumar(encontrados[0].id, 1); buscar.value = ""; pintarResultados(); }
-    });
-    servicio.addEventListener("change", revisar);
-    document.getElementById("vaciar").addEventListener("click", function () { lista = []; pintarLista(); });
-    formulario.addEventListener("submit", function (evento) {
-      if (document.getElementById("confirmar").disabled) evento.preventDefault();
+      var exacto = texto && catalogo.find(function (m) { return m.sku && quitarAcentos(m.sku) === texto; });
+      var elegido = exacto || (abierta ? visibles[activa] : null);
+      if (elegido) elegir(elegido);
     });
 
+    desplegable(document.getElementById("servicio-boton"), document.getElementById("servicios"), function (li) {
+      servicio.value = li.dataset.valor;
+      revisar();
+      buscar.focus();
+    });
+
+    document.getElementById("vaciar").addEventListener("click", function () { lista = []; pintarLista(); });
+    formulario.addEventListener("submit", function (evento) {
+      if (revisar()) return;
+      evento.preventDefault();
+      evento.stopImmediatePropagation();
+    }, true);
+
+    if (/[?&](hecho|agregar)=/.test(location.search)) history.replaceState(null, "", location.pathname);
     previo.forEach(function (l) { if (porId(l.id)) lista.push({ id: l.id, cantidad: l.cantidad }); });
     if (agregar && porId(agregar)) sumar(agregar, 1);
-    pintarResultados();
     pintarLista();
   })();
 </script>

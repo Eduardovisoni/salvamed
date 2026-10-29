@@ -4,11 +4,10 @@
 <div class="titulo-pagina">
   <div>
     <h1>Inventario</h1>
-    <p class="sutil">Cuándo pedir (R) y cuánto pedir (Q) de cada medicamento. μD y σD salen de lo despachado a los servicios en los últimos {{ cfg.ventana_dias }} días completos.</p>
   </div>
   <div class="acciones">
     <a class="boton" href="/importar">Importar</a>
-    <a class="boton boton--primario" href="/medicamentos/nuevo">+ Agregar medicamento</a>
+    <a class="boton boton--primario" href="/medicamentos/nuevo">Agregar medicamento</a>
   </div>
 </div>
 
@@ -18,27 +17,31 @@
 
 <div class="herramientas">
   <input id="buscar" class="campo__entrada buscador" type="search" placeholder="Buscar medicamento…" aria-label="Buscar medicamento">
-  <div class="filtros" role="group" aria-label="Filtrar por estado">
-    <button type="button" class="chip" data-filtro="todos" aria-pressed="true">Todos</button>
-    <button type="button" class="chip" data-filtro="pedir" aria-pressed="false">Pedir ya</button>
-    <button type="button" class="chip" data-filtro="pronto" aria-pressed="false">Pedir pronto</button>
-    <button type="button" class="chip" data-filtro="bien" aria-pressed="false">Abastecidos</button>
-    <button type="button" class="chip" data-filtro="pendiente" aria-pressed="false">Datos pendientes</button>
+  <div class="selector">
+    <button type="button" id="filtro-boton" class="boton selector__boton filtro__boton" aria-haspopup="listbox" aria-expanded="false" aria-controls="filtros">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M7 12h10M10 18h4"/></svg>
+      <span class="sutil">Filtro</span>
+      <span class="selector__valor">Todos</span>
+    </button>
+    <ul id="filtros" class="selector__lista selector__lista--derecha" role="listbox" aria-label="Filtrar por estado">
+      {% for clave, etiqueta in (("todos", "Todos"), ("pedir", "Pedir ya"), ("pronto", "Pedir pronto"), ("bien", "Abastecidos"), ("pendiente", "Datos pendientes")) %}
+      <li id="filtro-{{ clave }}" class="selector__opcion" role="option" data-valor="{{ clave }}" data-etiqueta="{{ etiqueta }}" aria-selected="{{ 'true' if clave == 'todos' else 'false' }}">
+        <span class="filtro__texto">{% if clave != "todos" %}<i class="punto punto--{{ clave }}"></i>{% endif %}{{ etiqueta }}</span>
+        <span class="selector__hay" data-cuenta="{{ clave }}"></span>
+      </li>
+      {% endfor %}
+    </ul>
   </div>
 </div>
 
 {% if filas %}
 <div class="tabla-envoltura">
-  <table class="tabla">
+  <table class="tabla tabla--densa">
     <thead>
       <tr>
         <th>Medicamento</th>
         <th class="num">Existencia</th>
-        <th class="num" title="Pedidos realizados que faltan por recibir">En camino</th>
-        <th class="num" title="Promedio de lo despachado por día completo">Consumo/día <span class="sin-mayus">μD</span></th>
-        <th class="num" title="R = μD·L + Z·σL, redondeado hacia arriba para pedir">Punto de reorden (R)</th>
-        <th class="num" title="IS = Z·σL">Inv. de seguridad</th>
-        <th class="num" title="EOQ redondeada a paquetes completos">Pedir</th>
+        <th class="num">En camino</th>
         <th>Estado</th>
         <th><span class="oculto">Acciones</span></th>
       </tr>
@@ -48,46 +51,26 @@
       <tr data-estado="{{ e.estado.clave }}" data-nombre="{{ e.m.nombre_completo | lower }} {{ e.m.sku | lower }}">
         <td>
           <a class="enlace-fila" href="/medicamentos/{{ e.m.id }}">{{ e.m.nombre }}</a>
-          <span class="sutil bloque">{{ e.m.presentacion }} · {{ e.m.unidad }}</span>
+          {% if e.m.presentacion %}<span class="sutil">{{ e.m.presentacion }}</span>{% endif %}
         </td>
-        <td class="num"><strong>{{ e.existencia | entero }}</strong></td>
-        <td class="num">{% if e.en_camino %}{{ e.en_camino | entero }}{% else %}<span class="sutil">—</span>{% endif %}</td>
-        <td class="num">
-          {% if e.consumo.disponible %}
-          {{ e.consumo.mu_d | num(1) }}
-          <span class="sutil bloque">σD {{ e.consumo.sigma_d | num(1) }} · {% if e.consumo.base == "semanal" %}base semanal{% else %}{{ e.consumo.dias }} d{% if e.consumo.calidad == "provisional" %}, provisional{% endif %}{% endif %}</span>
-          {% else %}
-          <span class="sutil">pendiente</span>
-          {% endif %}
-        </td>
-        <td class="num">{% if e.plan %}{{ e.plan.R_pedido }}<span class="sutil bloque">R {{ e.plan.R | num(1) }}</span>{% else %}<span class="sutil">—</span>{% endif %}</td>
-        <td class="num">{% if e.plan %}{{ e.plan.IS | num(1) }}{% else %}<span class="sutil">—</span>{% endif %}</td>
-        <td class="num">{% if e.plan and e.sugerida %}{{ e.sugerida | entero }}<span class="sutil bloque">EOQ {{ e.plan.Q | num(1) }}</span>{% else %}<span class="sutil">—</span>{% endif %}</td>
+        <td class="num">{{ e.existencia | entero }}</td>
+        <td class="num">{% if e.en_camino %}<span class="en-camino">+{{ e.en_camino | entero }}</span>{% else %}<span class="sin-dato">—</span>{% endif %}</td>
         <td>
           <span class="estado estado--{{ e.estado.clave }}">{{ e.estado.etiqueta }}</span>
           {% if e.pedido_abierto %}
-          <a class="sutil bloque" href="/pedidos/{{ e.pedido_abierto.id }}">Pedido #{{ e.pedido_abierto.id }} · {{ estados_pedido[e.pedido_abierto.estado] }}</a>
-          {% elif e.estado.clave == "pendiente" %}
-          <span class="sutil bloque">{{ e.pendientes[0] }}</span>
-          {% elif e.estado.dias_para_reorden is not none and e.estado.clave != "pedir" %}
-          <span class="sutil bloque">Reorden en {{ e.estado.dias_para_reorden | num(1) }} días</span>
+          <a class="sutil" href="/pedidos/{{ e.pedido_abierto.id }}">Pedido #{{ e.pedido_abierto.id }}</a>
           {% endif %}
-          {% if e.riesgo_agotamiento %}<span class="sutil bloque texto-pedir">Riesgo de agotarse antes de la entrega</span>{% endif %}
         </td>
-        <td><a class="boton boton--chico" href="/?agregar={{ e.m.id }}">Despachar</a></td>
+        <td class="num"><a class="boton boton--chico" href="/?agregar={{ e.m.id }}">Despachar</a></td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
   <p id="sin-resultados" class="vacio" hidden>Ningún medicamento coincide con la búsqueda.</p>
 </div>
-<p class="sutil nota-pie">
-  La posición de inventario (existencia + en camino) se compara con R. Un aviso sin confirmar no cuenta como mercancía comprada.
-  Con pocos días de despachos la estimación es provisional; lo que un servicio necesitó y no se pudo despachar por falta de existencia no queda registrado.
-</p>
 {% else %}
-<div class="vacio">
-  <p>Todavía no hay medicamentos en operación.</p>
+<div class="panel vacio">
+  <p>Todavía no hay medicamentos.</p>
   <div class="acciones" style="justify-content:center">
     <a class="boton boton--primario" href="/medicamentos/nuevo">Agregar el primero</a>
     <a class="boton" href="/configuracion#datos">Cargar la demostración</a>
@@ -96,7 +79,7 @@
 {% endif %}
 
 {% if inactivos %}
-<section class="panel" style="margin-top:18px">
+<section class="panel" style="margin-top:16px">
   <h2>Desactivados</h2>
   <p class="sutil">{% for m in inactivos %}<a href="/medicamentos/{{ m.id }}">{{ m.nombre_completo }}</a>{% if not loop.last %} · {% endif %}{% endfor %}</p>
 </section>
@@ -107,15 +90,15 @@
 <script>
   (function () {
     var filas = Array.prototype.slice.call(document.querySelectorAll("tbody tr"));
-    var chips = Array.prototype.slice.call(document.querySelectorAll(".chip"));
     var buscar = document.getElementById("buscar");
     var sinResultados = document.getElementById("sin-resultados");
-    var filtros = ["todos", "pedir", "pronto", "bien", "pendiente"];
+    var boton = document.getElementById("filtro-boton");
+    var lista = document.getElementById("filtros");
     var filtro = new URLSearchParams(window.location.search).get("estado");
-    if (filtros.indexOf(filtro) === -1) filtro = "todos";
+    if (!lista.querySelector('[data-valor="' + filtro + '"]')) filtro = "todos";
 
     function quitarAcentos(texto) {
-      return texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+      return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
     }
     function aplicar() {
       var texto = quitarAcentos(buscar.value.trim());
@@ -127,15 +110,40 @@
         if (coincide) visibles++;
       });
       if (sinResultados) sinResultados.hidden = visibles !== 0;
-      chips.forEach(function (chip) {
-        chip.setAttribute("aria-pressed", chip.dataset.filtro === filtro ? "true" : "false");
+    }
+
+    var envoltura = document.querySelector(".tabla-envoltura");
+    var sinMovimiento = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var listo = false;
+
+    function aplicarSuave() {
+      if (!listo || !envoltura || sinMovimiento || !envoltura.animate) { aplicar(); return; }
+      var antes = envoltura.offsetHeight;
+      aplicar();
+      var despues = envoltura.offsetHeight;
+      envoltura.style.overflow = "hidden";
+      envoltura.animate([{ height: antes + "px" }, { height: despues + "px" }], {
+        duration: 280, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)"
+      }).onfinish = function () { envoltura.style.overflow = ""; };
+      filas.filter(function (f) { return !f.hidden; }).slice(0, 25).forEach(function (fila, i) {
+        fila.animate([{ opacity: 0, transform: "translateY(6px)" }, { opacity: 1, transform: "none" }], {
+          duration: 240, delay: i * 16, easing: "ease-out", fill: "backwards"
+        });
       });
     }
-    document.querySelectorAll("[data-filtro]").forEach(function (boton) {
-      boton.addEventListener("click", function () { filtro = boton.dataset.filtro; aplicar(); });
+
+    lista.querySelectorAll("[data-cuenta]").forEach(function (cuenta) {
+      var clave = cuenta.dataset.cuenta;
+      cuenta.textContent = filas.filter(function (f) { return clave === "todos" || f.dataset.estado === clave; }).length;
+    });
+    var control = desplegable(boton, lista, function (li) {
+      filtro = li.dataset.valor;
+      boton.classList.toggle("filtro__boton--activo", filtro !== "todos");
+      aplicarSuave();
     });
     buscar.addEventListener("input", aplicar);
-    aplicar();
+    control.elegir(lista.querySelector('[data-valor="' + filtro + '"]'));
+    listo = true;
   })();
 </script>
 {% endblock %}

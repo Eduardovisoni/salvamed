@@ -52,7 +52,7 @@ def test_despachar_desde_la_pantalla_y_aviso_de_reposicion(cliente, db):
     r = cliente.post("/despachos", data=datos, follow_redirects=False)
     assert r.status_code == 303
     pagina = cliente.get(r.headers["location"]).text
-    assert "Despacho #" in pagina and "a Emergencia" in pagina and "Reposición necesaria" in pagina
+    assert "Despacho #" in pagina and "a Emergencia" in pagina and "necesita reposición" in pagina
     assert cliente.post("/despachos", data=datos, follow_redirects=False).headers["location"] == r.headers["location"]
     db.refresh(m)
     assert m.existencia == 15

@@ -5,7 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block titulo %}SALVAMED{% endblock %}</title>
   <link rel="icon" href="/static/icono.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/static/estilos.css?v=6">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="/static/estilos.css?v=14">
   {% block cabeza %}{% endblock %}
 </head>
 <body class="{% block clase_cuerpo %}{% endblock %}">
@@ -13,10 +16,10 @@
   <header class="encabezado">
     <div class="contenedor encabezado__fila">
       <a class="marca" href="/">
-        <img src="/static/icono.svg" alt="" width="36" height="36">
+        <img src="/static/icono.svg" alt="" width="28" height="28">
         <span>
           <strong>SALVAMED</strong>
-          <small>Farmacia interna · Sanatorio El Roble, Jutiapa</small>
+          <small>Sanatorio El Roble</small>
         </span>
       </a>
       {% if pestana is defined %}
@@ -25,7 +28,7 @@
         <a href="/medicamentos" {% if pestana in ("inventario", "nuevo", "editar") %}aria-current="page"{% endif %}>Inventario</a>
         <a href="/pedidos" {% if pestana == "pedidos" %}aria-current="page"{% endif %}>Pedidos</a>
         <a href="/costos" {% if pestana == "costos" %}aria-current="page"{% endif %}>Costos</a>
-        <a class="pestanas__sim" href="/simulacion" {% if pestana == "simulacion" %}aria-current="page"{% endif %}>Simulación</a>
+        <a href="/simulacion" {% if pestana == "simulacion" %}aria-current="page"{% endif %}>Simulación</a>
         <a href="/configuracion" {% if pestana == "configuracion" %}aria-current="page"{% endif %}>Configuración</a>
         {% if a.clave %}
         <form method="post" action="/salir" class="pestanas__salir"><button type="submit">Salir</button></form>
@@ -37,7 +40,7 @@
   {% if not a.clave %}
   <div class="franja franja--aviso">
     <div class="contenedor">
-      {% if a.en_linea %}Sin <code>SALVAMED_CLAVE</code>: la app en línea está en solo lectura.{% else %}Modo local sin clave: cualquiera con acceso a esta computadora puede usar la app.{% endif %}
+      {% if a.en_linea %}Solo lectura: falta configurar la clave.{% else %}Modo local sin clave.{% endif %}
     </div>
   </div>
   {% endif %}
@@ -72,6 +75,72 @@
       if (boton) boton.addEventListener("click", cerrar);
       programar();
     });
+
+    function desplegable(boton, lista, alElegir) {
+      var opciones = Array.prototype.slice.call(lista.querySelectorAll("[role=option]"));
+      var activa = -1;
+      var abierta = false;
+
+      function marcar() {
+        boton.removeAttribute("aria-activedescendant");
+        opciones.forEach(function (li, i) {
+          var si = i === activa;
+          li.classList.toggle("selector__opcion--activa", si);
+          if (si) { boton.setAttribute("aria-activedescendant", li.id); li.scrollIntoView({ block: "nearest" }); }
+        });
+      }
+      function abrir() {
+        abierta = true;
+        activa = Math.max(0, opciones.findIndex(function (li) { return li.getAttribute("aria-selected") === "true"; }));
+        lista.classList.add("selector__lista--abierta");
+        boton.setAttribute("aria-expanded", "true");
+        marcar();
+      }
+      function cerrar() {
+        abierta = false;
+        lista.classList.remove("selector__lista--abierta");
+        boton.setAttribute("aria-expanded", "false");
+        boton.removeAttribute("aria-activedescendant");
+      }
+      function elegir(li) {
+        opciones.forEach(function (x) { x.setAttribute("aria-selected", x === li ? "true" : "false"); });
+        boton.querySelector(".selector__valor").textContent = li.dataset.etiqueta || li.dataset.valor;
+        boton.classList.remove("selector__boton--vacio");
+        cerrar();
+        alElegir(li);
+      }
+
+      boton.addEventListener("click", function () { if (abierta) cerrar(); else abrir(); });
+      boton.addEventListener("blur", cerrar);
+      lista.addEventListener("mousedown", function (evento) { evento.preventDefault(); });
+      opciones.forEach(function (li, i) {
+        li.addEventListener("click", function () { elegir(li); });
+        li.addEventListener("mousemove", function () { if (activa !== i) { activa = i; marcar(); } });
+      });
+      boton.addEventListener("keydown", function (evento) {
+        if (!abierta) {
+          if (["ArrowDown", "ArrowUp", "Enter", " "].indexOf(evento.key) !== -1) { evento.preventDefault(); abrir(); }
+          return;
+        }
+        if (evento.key === "ArrowDown") {
+          evento.preventDefault();
+          if (activa < opciones.length - 1) { activa++; marcar(); }
+        } else if (evento.key === "ArrowUp") {
+          evento.preventDefault();
+          if (activa > 0) { activa--; marcar(); }
+        } else if (evento.key === "Enter" || evento.key === " ") {
+          evento.preventDefault();
+          if (opciones[activa]) elegir(opciones[activa]);
+        } else if (evento.key === "Escape") {
+          evento.preventDefault();
+          cerrar();
+        }
+      });
+      document.addEventListener("mousedown", function (evento) {
+        if (!boton.contains(evento.target) && !lista.contains(evento.target)) cerrar();
+      });
+      return { elegir: elegir };
+    }
   </script>
   {% block scripts %}{% endblock %}
 </body>

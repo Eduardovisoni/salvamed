@@ -4,7 +4,7 @@
 <div class="titulo-pagina">
   <div>
     <h1>Costos</h1>
-    <p class="sutil">Lo que costó lo que consumieron los servicios y lo que se compró. Los importes de la demostración son simulados.</p>
+    <p class="sutil">Lo consumido por los servicios y lo comprado.</p>
   </div>
 </div>
 
@@ -13,9 +13,9 @@
   <section class="panel">
     <h2>{{ titulo }}</h2>
     <dl class="cuentas">
-      <div class="cuentas__total"><dt>Costo de lo consumido ({{ r.numero_despachos }} despachos, {{ r.unidades }} unidades)</dt><dd>{{ r.consumido | dinero }}</dd></div>
+      <div class="cuentas__total"><dt>Consumido · {{ r.numero_despachos }} despachos</dt><dd>{{ r.consumido | dinero }}</dd></div>
       {% for servicio, costo, numero in r.por_servicio %}
-      <div><dt>{{ servicio }} <span class="sutil">({{ numero }})</span></dt><dd>{{ costo | dinero }}</dd></div>
+      <div><dt>{{ servicio }}</dt><dd>{{ costo | dinero }}</dd></div>
       {% endfor %}
       <div><dt>Compras recibidas</dt><dd>{{ r.compras_recibidas | dinero }}</dd></div>
     </dl>
@@ -26,15 +26,9 @@
 <section class="panel">
   <h2>Pedidos sin recibir</h2>
   <dl class="cuentas cuentas--fila">
-    <div><dt>Comprometido en pedidos realizados</dt><dd>{{ total.compromisos | dinero }}</dd></div>
-    <div><dt>Estimado en avisos por gestionar</dt><dd>{{ total.por_gestionar | dinero }}</dd></div>
+    <div><dt>En pedidos realizados</dt><dd>{{ total.compromisos | dinero }}</dd></div>
+    <div><dt>En pedidos por gestionar</dt><dd>{{ total.por_gestionar | dinero }}</dd></div>
   </dl>
-  <p class="sutil">
-    Costo de lo consumido: unidades despachadas × costo promedio ponderado de compra, guardado al momento del despacho.
-    No es una factura ni un cargo al paciente: SALVAMED no maneja cobros ni datos de pacientes.
-    Comprar no es consumir: el costo de consumo aparece al despachar. Cada pedido suma su envío una sola vez.
-    SALVAMED no registra pagos al proveedor.
-  </p>
 </section>
 
 <section class="panel">

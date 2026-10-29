@@ -29,13 +29,13 @@
       </tbody>
     </table>
   </div>
-  <div class="carrito__total"><span>Costo de lo despachado</span><strong>{{ despacho.costo_total | dinero }}</strong></div>
+  <div class="carrito__total"><span>Total</span><strong>{{ despacho.costo_total | dinero }}</strong></div>
 </section>
 
 {% if despacho.estado == "confirmado" %}
 <form class="panel" method="post" action="/despachos/{{ despacho.id }}/anular" data-confirmar="¿Anular el despacho #{{ despacho.id }}? Las unidades regresan a la farmacia." data-una-vez>
   <h2>Anular despacho</h2>
-  <p class="sutil">El despacho no se borra: se registra un movimiento de anulación que devuelve las unidades y deja la explicación.</p>
+  <p class="sutil">Las unidades regresan a la farmacia.</p>
   <div class="campo">
     <label for="motivo">Motivo</label>
     <input class="campo__entrada" id="motivo" name="motivo" maxlength="200" required placeholder="Ej. Se registró en el servicio equivocado">

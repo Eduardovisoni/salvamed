@@ -4,7 +4,7 @@
 <div class="titulo-pagina">
   <div>
     <h1>Configuración</h1>
-    <p class="sutil">Parámetros administrativos que revisa el encargado. Los resultados (μD, R, Q…) los calcula el sistema.</p>
+    <p class="sutil">Parámetros generales, proveedores y avisos.</p>
   </div>
   <div class="acciones"><a class="boton" href="/importar">Importar datos</a></div>
 </div>
@@ -16,7 +16,6 @@
   {% for grupo in grupos %}
   <fieldset class="grupo">
     <legend>{{ grupo.titulo }}</legend>
-    <p class="sutil grupo__descripcion">{{ grupo.descripcion }}</p>
     {% if loop.first %}
     <div class="dias-semana{% if errores.get('dias_semana') %} campo--error{% endif %}">
       <span class="campo__etiqueta">Días de operación</span>
@@ -33,7 +32,7 @@
   {% endfor %}
   <fieldset class="grupo">
     <legend>Servicios que reciben medicamentos</legend>
-    <p class="sutil grupo__descripcion">Uno por línea. Lista inicial tomada de los servicios que publica el sanatorio (ficha de TuSalud y Facebook): revísala con la farmacia.</p>
+    <p class="sutil grupo__descripcion">Uno por línea.</p>
     <div class="campo{% if errores.get('servicios') %} campo--error{% endif %}">
       <label for="servicios">Servicios</label>
       <textarea class="campo__entrada" id="servicios" name="servicios" rows="7">{{ valores.get("servicios", "") }}</textarea>
@@ -43,9 +42,8 @@
   <div class="acciones"><button class="boton boton--primario" type="submit">Guardar configuración</button></div>
 </form>
 
-<section class="panel" id="proveedores" style="margin-top:22px">
+<section class="panel" id="proveedores" style="margin-top:16px">
   <h2>Proveedores</h2>
-  <p class="sutil">Si un proveedor tiene plazo o costo de envío, se usan para sus medicamentos; si no, se usan los generales. Una compra conjunta cuenta el envío una sola vez en el dinero del pedido.</p>
   {% for prov in proveedores %}
   <form class="fila-proveedor" method="post" action="/proveedores/{{ prov.id }}">
     {% set valores = valores_proveedor[prov.id] %}{% set errores = {} %}{% set sufijo = "_" ~ prov.id %}
@@ -69,28 +67,20 @@
     <div><dt>Usuarios autorizados</dt><dd>{{ bot.usuarios | join(", ") or "cualquiera del chat" }}</dd></div>
   </dl>
   {% if bot.modo == "simulado" %}
-  <p class="sutil">
-    Sin <code>TELEGRAM_TOKEN</code> los avisos se guardan con «transporte simulado» y se responden desde la web.
-    Para el bot real: crea un bot con @BotFather, define <code>TELEGRAM_TOKEN</code>, <code>TELEGRAM_MODO=polling</code> (local) o <code>webhook</code> (Railway)
-    y <code>TELEGRAM_CHATS</code>. Escribe /start al bot para conocer el id del chat. Ver el README.
-  </p>
+  <p class="sutil">Sin <code>TELEGRAM_TOKEN</code> los avisos se simulan y se responden desde la web. Ver el README.</p>
   {% endif %}
-  <h3 style="margin:14px 0 8px">Últimos avisos</h3>
-  {% include "_mensajes.html" %}
+  <details class="plegable plegable--interno">
+    <summary>Últimos avisos <span class="plegable__nota">{{ mensajes | length }}</span></summary>
+    {% include "_mensajes.html" %}
+  </details>
 </section>
 
 <section class="panel" id="datos">
   <h2>Datos</h2>
-  <p>La operación arranca vacía: no se siembran despachos ni historia ficticia. La demostración se carga solo con este botón.</p>
+  <p class="sutil">Carga 30 medicamentos simulados para probar o exponer.</p>
   <form method="post" action="/configuracion/demo" data-confirmar="Se agregará el catálogo de demostración (30 medicamentos simulados) a la operación. ¿Continuar?" data-una-vez>
     <button class="boton {% if catalogo_vacio %}boton--primario{% endif %}" type="submit">Cargar catálogo de demostración</button>
   </form>
-  <p class="sutil">
-    Usa <code>datos/SALVAMED en orden.csv</code>. Solo los nombres de los medicamentos están contextualizados en el sanatorio; existencias, plazos,
-    totales semanales y costos son simulados. Si un medicamento ya existe, no se duplica ni cambia su existencia.
-  </p>
-  {% if respaldo %}
-  <p class="sutil">Respaldo de la versión anterior en esta base: {% for tabla, filas in respaldo.items() %}<code>{{ tabla }}</code> ({{ filas }} filas){% if not loop.last %}, {% endif %}{% endfor %}. No se modifica.</p>
-  {% endif %}
+  <p class="sutil" style="margin-bottom:0">Si un medicamento ya existe, no se duplica ni cambia su existencia.</p>
 </section>
 {% endblock %}

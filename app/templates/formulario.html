@@ -6,11 +6,11 @@
     {% if medicamento %}
     <a class="volver" href="/medicamentos/{{ medicamento.id }}">← {{ medicamento.nombre_completo }}</a>
     <h1>Editar medicamento</h1>
-    <p class="sutil">La existencia no se edita aquí: usa «Ajustar existencia» para que quede el movimiento con su motivo.</p>
+    <p class="sutil">La existencia se cambia con «Ajustar existencia».</p>
     {% else %}
     <a class="volver" href="/medicamentos">← Inventario</a>
     <h1>Agregar medicamento</h1>
-    <p class="sutil">Solo el nombre y la unidad son obligatorios. Lo que falte queda como pendiente y el plan se calcula cuando haya datos.</p>
+    <p class="sutil">Solo el nombre y la unidad son obligatorios.</p>
     {% endif %}
   </div>
 </div>

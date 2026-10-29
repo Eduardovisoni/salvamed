@@ -1,44 +1,43 @@
 {% extends "base.html" %}
 {% block titulo %}Pedidos · SALVAMED{% endblock %}
 {% block contenido %}
-<div class="titulo-pagina">
+<div class="titulo-pagina titulo-pagina--compacto">
   <div>
     <h1>Pedidos</h1>
-    <p class="sutil">El aviso llega al encargado por Telegram. «Pedido realizado» registra que compró por su canal habitual; la existencia solo sube al recibir.</p>
   </div>
 </div>
 
 {% set grupos = [("pendiente", "Pendientes de gestionar"), ("realizado", "Realizados · en camino"), ("recibido", "Recibidos"), ("cancelado", "Cancelados")] %}
-{% for clave, titulo in grupos %}
-{% set lista = pedidos | selectattr("estado", "equalto", clave) | list %}
-<section class="panel">
-  <h2>{{ titulo }} <span class="sutil">({{ lista | length }})</span></h2>
-  {% if lista %}
-  <div class="tabla-envoltura tabla-envoltura--plana">
-    <table class="tabla tabla--compacta">
-      <thead><tr><th>Pedido</th><th>Medicamentos</th><th>Proveedor</th><th>Creado</th>{% if clave == "realizado" %}<th>Confirmó</th><th>Llegada estimada</th>{% elif clave == "recibido" %}<th>Recibido</th>{% endif %}<th></th></tr></thead>
-      <tbody>
-        {% for p in lista %}
-        <tr>
-          <td><a class="enlace-fila" href="/pedidos/{{ p.id }}">#{{ p.id }}</a><span class="sutil bloque">{{ "Automático" if p.origen == "automatico" else "Manual" }}</span></td>
-          <td>{% for l, m in lineas[p.id] %}{{ l.cantidad_pedida }} × {{ m.nombre_completo }}{% if l.cantidad_recibida %} <span class="sutil">(recibidas {{ l.cantidad_recibida }})</span>{% endif %}{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
-          <td>{{ proveedores[p.proveedor_id].nombre if p.proveedor_id in proveedores else "—" }}</td>
-          <td class="num-izq">{{ p.creado | fecha }}</td>
-          {% if clave == "realizado" %}
-          <td>{{ p.confirmado_por }}</td>
-          <td class="num-izq">{{ p.fecha_estimada | fecha }}{% if p.fecha_estimada and p.fecha_estimada < momento %} <span class="estado estado--pedir">Atrasado</span>{% endif %}</td>
-          {% elif clave == "recibido" %}
-          <td class="num-izq">{{ p.recibido_en | fecha }}</td>
-          {% endif %}
-          <td><a class="boton boton--chico" href="/pedidos/{{ p.id }}">{% if clave == "realizado" %}Recibir{% elif clave == "pendiente" %}Gestionar{% else %}Ver{% endif %}</a></td>
-        </tr>
+<div class="tablero">
+  {% for clave, titulo in grupos %}
+  {% set lista = pedidos | selectattr("estado", "equalto", clave) | list %}
+  <section class="tablero__columna" aria-label="{{ titulo }}">
+    <h2 class="tablero__titulo"><i class="punto punto--{{ clave }}-pedido"></i>{{ titulo }}<span class="tablero__cuenta">{{ lista | length }}</span></h2>
+    {% for p in lista %}
+    <a class="pedido-tarjeta" href="/pedidos/{{ p.id }}">
+      <div class="pedido-tarjeta__cabeza">
+        <strong>#{{ p.id }}</strong>
+        <span class="sutil">{{ proveedores[p.proveedor_id].nombre if p.proveedor_id in proveedores else "Sin proveedor" }}</span>
+      </div>
+      <ul class="pedido-tarjeta__lineas">
+        {% for l, m in lineas[p.id] %}
+        <li><span class="pedido-tarjeta__cantidad">{{ l.cantidad_pedida }} ×</span> {{ m.nombre }} <span class="sutil">{{ m.presentacion }}</span></li>
         {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% else %}
-  <p class="vacio">Ninguno.</p>
-  {% endif %}
-</section>
-{% endfor %}
+      </ul>
+      <div class="pedido-tarjeta__pie">
+        <span class="sutil">
+          {% if clave == "realizado" %}Llega {{ p.fecha_estimada | dia }}{% if p.fecha_estimada and p.fecha_estimada < momento %} <span class="estado estado--pedir">Atrasado</span>{% endif %}
+          {% elif clave == "recibido" %}Recibido {{ p.recibido_en | dia }}
+          {% else %}Creado {{ p.creado | dia }}{% endif %}
+        </span>
+        {% if clave == "pendiente" %}<span class="boton boton--chico">Gestionar</span>
+        {% elif clave == "realizado" %}<span class="boton boton--chico">Recibir</span>{% endif %}
+      </div>
+    </a>
+    {% else %}
+    <p class="tablero__vacio">Ninguno</p>
+    {% endfor %}
+  </section>
+  {% endfor %}
+</div>
 {% endblock %}

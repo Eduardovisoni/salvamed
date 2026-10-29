@@ -3,7 +3,7 @@
 {% block contenido %}
 <form class="panel entrar" method="post" action="/entrar">
   <h1>Entrar</h1>
-  <p class="sutil">SALVAMED está protegido con una clave para que nadie más registre ventas, pedidos ni cambios.</p>
+  <p class="sutil">Escribe la clave de SALVAMED.</p>
   {% if error %}<div class="aviso aviso--error" role="alert">{{ error }}</div>{% endif %}
   <input type="hidden" name="siguiente" value="{{ siguiente }}">
   <div class="campo">
