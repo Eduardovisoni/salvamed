@@ -37,12 +37,12 @@
     {% if not p %}
       Todavía no se puede calcular el plan. Falta: {{ e.pendientes | join("; ") }}.
     {% elif e.estado.clave == "pedir" %}
-      La posición de inventario ({{ e.posicion | entero }} = {{ e.existencia | entero }} en bodega{% if e.en_camino %} + {{ e.en_camino | entero }} en camino{% endif %}) llegó al punto de reorden ({{ p.R | num(1) }}).
+      La posición de inventario ({{ e.posicion | entero }} = {{ e.existencia | entero }} en bodega{% if e.en_camino %} + {{ e.en_camino | entero }} en camino{% endif %}) llegó al punto de reorden ({{ p.R_pedido }}).
       {% if e.pedido_abierto %}Hay un <a href="/pedidos/{{ e.pedido_abierto.id }}">pedido #{{ e.pedido_abierto.id }}</a> ({{ estados_pedido[e.pedido_abierto.estado] | lower }}).{% else %}Hay que pedir <strong>{{ e.sugerida | entero }} {{ u }}</strong>.{% endif %}
     {% elif e.estado.clave == "pronto" %}
-      En unos <strong>{{ e.estado.dias_para_reorden | num(1) }} días</strong> llegará al punto de reorden ({{ p.R | num(1) }} {{ u }}). Conviene preparar el pedido de {{ e.sugerida | entero }} {{ u }}.
+      En unos <strong>{{ e.estado.dias_para_reorden | num(1) }} días</strong> llegará al punto de reorden ({{ p.R_pedido }} {{ u }}). Conviene preparar el pedido de {{ e.sugerida | entero }} {{ u }}.
     {% elif e.estado.dias_para_reorden is not none %}
-      Faltan unos <strong>{{ e.estado.dias_para_reorden | num(1) }} días</strong> para llegar al punto de reorden ({{ p.R | num(1) }} {{ u }}).
+      Faltan unos <strong>{{ e.estado.dias_para_reorden | num(1) }} días</strong> para llegar al punto de reorden ({{ p.R_pedido }} {{ u }}).
     {% else %}
       No hubo despachos en la ventana: no hace falta pedir por ahora.
     {% endif %}
@@ -50,21 +50,21 @@
 
   {% if p %}
   {% set escala = [p.R + e.sugerida, e.posicion, 1] | max %}
-  <div class="medidor" role="img" aria-label="Posición {{ e.posicion }} de {{ escala | entero }}; punto de reorden {{ p.R | entero }}; inventario de seguridad {{ p.IS | entero }}">
+  <div class="medidor" role="img" aria-label="Posición {{ e.posicion }} de {{ escala | entero }}; punto de reorden {{ p.R_pedido }}; inventario de seguridad {{ p.IS | entero }}">
     <div class="medidor__barra">
       <div class="medidor__relleno" style="width: {{ ([e.existencia / escala * 100, 100] | min) | round(2) }}%"></div>
       {% if e.en_camino %}<div class="medidor__camino" style="left: {{ ([e.existencia / escala * 100, 100] | min) | round(2) }}%; width: {{ ([e.en_camino / escala * 100, 100] | min) | round(2) }}%"></div>{% endif %}
       <div class="medidor__marca medidor__marca--is" style="left: {{ ([p.IS / escala * 100, 100] | min) | round(2) }}%"><span>IS {{ p.IS | entero }}</span></div>
-      <div class="medidor__marca medidor__marca--r" style="left: {{ ([p.R / escala * 100, 100] | min) | round(2) }}%"><span>R {{ p.R | entero }}</span></div>
+      <div class="medidor__marca medidor__marca--r" style="left: {{ ([p.R_pedido / escala * 100, 100] | min) | round(2) }}%"><span>R {{ p.R_pedido }}</span></div>
     </div>
-    <div class="medidor__escala"><span>0</span><span>R + pedido = {{ (p.R + e.sugerida) | entero }}</span></div>
+    <div class="medidor__escala"><span>0</span><span>R + pedido = {{ p.R_pedido + e.sugerida }}</span></div>
   </div>
   {% endif %}
 
   <dl class="cifras">
     <div><dt>Existencia</dt><dd>{{ e.existencia | entero }}</dd></div>
     <div><dt>En camino</dt><dd>{{ e.en_camino | entero }}</dd></div>
-    <div><dt>Punto de reorden</dt><dd>{{ p.R | num(1) if p else "—" }}</dd></div>
+    <div><dt>Punto de reorden</dt><dd>{{ p.R_pedido if p else "—" }}</dd></div>
     <div><dt>Alcanza para</dt><dd>{% if e.estado.dias_de_cobertura is not none %}{{ e.estado.dias_de_cobertura | num(1) }} días{% else %}—{% endif %}</dd></div>
   </dl>
 </section>
@@ -165,13 +165,13 @@
     <h2>h) Política del inventario</h2>
     {% if p and p.D > 0 %}
     <ul class="politica">
-      <li>Cuando la posición de inventario baje a <mark>{{ p.R | entero }} {{ u }}</mark>, pedir <mark>{{ e.sugerida | entero }} {{ u }}</mark> (EOQ {{ p.Q | num(2) }}{% if m.unidades_paquete > 1 %}, redondeada a paquetes de {{ m.unidades_paquete }}{% endif %}), buscando una probabilidad del <mark>{{ par.p.valor | corto }} %</mark> de no agotarse mientras llega el pedido.</li>
+      <li>Cuando la posición de inventario baje a <mark>{{ p.R_pedido }} {{ u }}</mark> (R {{ p.R | num(2) }} redondeado hacia arriba), pedir <mark>{{ e.sugerida | entero }} {{ u }}</mark> (EOQ {{ p.Q | num(2) }} redondeada hacia arriba{% if m.unidades_paquete > 1 %} a paquetes de {{ m.unidades_paquete }}{% endif %}), buscando una probabilidad del <mark>{{ par.p.valor | corto }} %</mark> de no agotarse mientras llega el pedido.</li>
       <li>Serían unos <mark>{{ p.N | num(1) }} pedidos</mark> al año, con unos <mark>{{ p.T | num(1) }} días de operación</mark> entre pedidos (T). Esto es distinto del plazo de entrega L = {{ par.L.valor | corto }} días.</li>
       <li>El costo de pedir y mantener el inventario de ciclo (CT) es de <mark>{{ p.CT | dinero }}</mark> al año. No incluye la compra de los medicamentos.</li>
       <li>El inventario de seguridad es de <mark>{{ p.IS | num(1) }} {{ u }}</mark> y mantenerlo cuesta <mark>{{ p.H_IS | dinero }}</mark> al año (aparte de CT).</li>
     </ul>
     {% if m.unidades_paquete > 1 and e.ajuste_paquete %}<p class="sutil">El redondeo a paquetes agrega {{ e.ajuste_paquete | num(1) }} unidades a la EOQ; la cantidad redondeada ya no es exactamente la óptima.</p>{% endif %}
-    <p class="sutil">Supuestos: demanda diaria independiente y aproximadamente normal, plazo constante. No garantiza que nunca falte: es una probabilidad.</p>
+    <p class="sutil">Supuestos: demanda diaria independiente y aproximadamente normal, plazo constante. No garantiza que nunca falte: es la probabilidad de no agotarse mientras llega cada pedido, por eso casi todas las solicitudes encuentran el medicamento.</p>
     {% elif p %}
     <p>No hubo despachos en la ventana: D = 0, no se planifican pedidos.</p>
     {% else %}
@@ -194,7 +194,8 @@
       <span class="inciso__letra">b)</span>
       <div><h3>Punto de reorden</h3>
         <p class="formula">σL = √(L · σD²) = √({{ par.L.valor | corto }} × {{ c.sigma_d | corto }}²) = {{ p.sigma_L | num }}</p>
-        <p class="formula">R = μD · L + Z · σL = {{ c.mu_d | corto }} × {{ par.L.valor | corto }} + {{ p.Z | num(3) }} × {{ p.sigma_L | num }}</p></div>
+        <p class="formula">R = μD · L + Z · σL = {{ c.mu_d | corto }} × {{ par.L.valor | corto }} + {{ p.Z | num(3) }} × {{ p.sigma_L | num }}</p>
+        <p class="formula">Se pide al llegar a {{ p.R_pedido }} (R redondeado hacia arriba)</p></div>
       <span class="resultado">{{ p.R | num }}</span>
     </li>
     <li>

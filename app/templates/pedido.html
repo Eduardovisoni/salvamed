@@ -30,7 +30,7 @@
           <tr>
             <td><a class="enlace-fila" href="/medicamentos/{{ m.id }}">{{ m.nombre_completo }}</a><span class="sutil bloque">{{ m.unidad }}{% if m.unidades_paquete > 1 %} · paquetes de {{ m.unidades_paquete }}{% endif %}</span></td>
             <td class="num">{{ l.existencia_aviso if l.existencia_aviso is not none else "—" }}<span class="sutil bloque">posición {{ l.posicion_aviso if l.posicion_aviso is not none else "—" }}</span></td>
-            <td class="num">{{ l.punto_reorden | num(1) }}</td>
+            <td class="num">{{ l.punto_reorden | punto_pedido }}<span class="sutil bloque">R {{ l.punto_reorden | num(1) }}</span></td>
             <td class="num">{{ l.cantidad_eoq | num(1) }}</td>
             <td class="num">{{ l.cantidad_sugerida }}</td>
             <td class="num">

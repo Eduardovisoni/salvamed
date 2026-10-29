@@ -184,7 +184,7 @@ def evaluar_grupo(db: Session, medicamentos: list[Medicamento], momento: datetim
         if e.plan and e.plan.D > 0 and e.estado.clave == "pedir" and abierto is None and e.sugerida > 0:
             por_proveedor.setdefault(m.proveedor_id, []).append(e)
         elif abierto is not None and abierto.estado == REALIZADO and e.plan:
-            if e.posicion <= e.plan.R and not abierto.aviso_insuficiente:
+            if e.posicion <= e.plan.R_pedido and not abierto.aviso_insuficiente:
                 abierto.aviso_insuficiente = True
                 avisos.encolar(db, "insuficiente", avisos.texto_insuficiente(e, abierto), m.corrida_id, abierto.id, m.id)
             if abierto.fecha_estimada and momento > abierto.fecha_estimada and not abierto.aviso_atraso:

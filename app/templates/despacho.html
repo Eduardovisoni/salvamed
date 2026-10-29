@@ -43,7 +43,7 @@
 </div>
 {% for pedido, lineas in nuevos_pedidos %}
 <div class="aviso aviso--pedir" role="status">
-  ⚠️ Reposición necesaria: {% for l, m in lineas %}<strong>{{ m.nombre_completo }}</strong> llegó al punto de reorden ({{ l.punto_reorden | num(1) }}). {% endfor %}
+  ⚠️ Reposición necesaria: {% for l, m in lineas %}<strong>{{ m.nombre_completo }}</strong> llegó al punto de reorden ({{ l.punto_reorden | punto_pedido }}). {% endfor %}
   Se creó el <a href="/pedidos/{{ pedido.id }}">pedido #{{ pedido.id }}</a> y se avisó al encargado de compras.
 </div>
 {% endfor %}

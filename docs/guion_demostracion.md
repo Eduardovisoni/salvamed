@@ -34,16 +34,16 @@ Datos de la semilla 2026, escenario «Sanatorio en un mes normal»:
    de cada servicio sube), los despachos y cómo bajan las existencias. De noche se ven sobre todo Emergencia y las rondas
    de Encamamiento; la Sala de operaciones pide de día. Al terminar cada día la estimación se actualiza: después de dos
    días completos aparecen μD, σD, R e IS (provisionales).
-3. El **día 4 a las 10:15**, la Ceftriaxona llega a su punto de reorden y el reloj se pausa: «esta pausa es para
+3. El **día 4 a las 07:04**, la Ceftriaxona llega a su punto de reorden y el reloj se pausa: «esta pausa es para
    explicar; en el sanatorio real los servicios siguen pidiendo».
-4. Lee el cálculo en pantalla: μD, σD, σL = σD·√L, Z, IS = Z·σL, R = μD·L + IS, la posición ≤ R y la EOQ redondeada.
+4. Lee el cálculo en pantalla: μD, σD, σL = σD·√L, Z, IS = Z·σL, R = μD·L + IS, la posición ≤ R redondeado hacia arriba y la EOQ redondeada hacia arriba.
 5. Muestra el mensaje en el teléfono: medicamento, existencia, R, cantidad sugerida, plazo y que es una simulación.
 6. El expositor pulsa **✅ Pedido realizado**. La pantalla registra quién confirmó y el reloj se reanuda solo.
 7. Mientras corre L la existencia sigue bajando. El pedido llega el día 7 con 7 viales todavía en la farmacia.
 8. Al llegar, la gráfica muestra el salto (línea verde) y en los eventos aparece «🚚 Llegó el pedido».
 9. Pulsa **Siguiente evento** hasta el aviso del **Paracetamol (día 12)**. Durante L usa casi toda su reserva (llega con
    6 frascos de un inventario de seguridad de 20), pero el pedido llega antes de agotarse.
-10. Sigue con **Siguiente evento** hasta el **Salbutamol (día 16)**: esta vez faltan 4 monodosis antes de que llegue el
+10. Sigue con **Siguiente evento** hasta el **Salbutamol (día 15, 23:54)**: esta vez faltan 4 monodosis antes de que llegue el
     pedido. «Un 95 % de servicio no es 100 %: es una probabilidad, no una garantía.»
 11. Opcional: escenario «Aumento de casos respiratorios (salbutamol)». Es igual hasta el día 14; desde el día 15 los
     servicios piden 2.3 veces más salbutamol. Falta salbutamol los días 17 y 18 porque R todavía no recoge el aumento, y
@@ -57,3 +57,6 @@ Datos de la semilla 2026, escenario «Sanatorio en un mes normal»:
 - Opcional: corrida con la misma semilla y demora de gestión de 24 h para comparar faltantes y pedidos.
 - Recuerda los límites: datos simulados, demanda normal, plazo constante, y una probabilidad de servicio que no es una
   garantía.
+- Si preguntan qué significa el 95 %: «es la probabilidad de que, cada vez que pedimos, el medicamento no se acabe
+  mientras llega el pedido; por eso casi todas las solicitudes se atienden, como el 995 de cada 1000 del ejemplo de la
+  clase».

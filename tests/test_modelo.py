@@ -12,6 +12,7 @@ def test_reproduce_el_ejemplo_de_la_clase_12():
     assert round(p.Q, 2) == 540.37
     assert round(p.sigma_L, 2) == 23.01
     assert round(p.R, 2) == 339.27
+    assert p.R_pedido == 340
     assert round(p.N, 2) == 13.51
     assert round(p.T, 2) == 27.02
     assert round(p.CT, 2) == 270.19
@@ -26,7 +27,7 @@ def test_is_es_r_menos_l_por_mu():
 
 @pytest.mark.parametrize(
     ("posicion", "clave"),
-    [(339, "pedir"), (339.27, "pedir"), (340, "pronto"), (479, "pronto"), (480, "bien")],
+    [(339, "pedir"), (340, "pedir"), (341, "pronto"), (480, "pronto"), (481, "bien")],
 )
 def test_estado_segun_la_posicion(posicion, clave):
     p = calcular_plan(SONY)
@@ -37,6 +38,7 @@ def test_sin_variacion_no_hay_inventario_de_seguridad():
     p = calcular_plan(Datos(365, 20, 0, 14, 10, 0.5, 95))
     assert p.IS == 0
     assert p.R == 280
+    assert p.R_pedido == 280
 
 
 def test_sin_demanda_no_divide_entre_cero():

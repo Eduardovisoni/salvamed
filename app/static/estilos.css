@@ -650,6 +650,14 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: 0.85em; backgr
 .estante__marca--r { background: var(--pedir); }
 .estante__marca--is { background: #f79009; }
 .estante__pie { grid-column: 1 / -1; font-size: 0.7rem; color: var(--sutil); font-variant-numeric: tabular-nums; }
+.estante__dato { display: flex; justify-content: space-between; align-items: baseline; gap: 4px; padding: 2px 0; border-bottom: 1px dashed #e4e7ec; }
+.estante__dato--is { border-bottom: 0; }
+.estante__etiqueta { font-size: 0.72rem; color: #475467; }
+.estante__simbolo { font-size: 0.65rem; color: #98a2b3; }
+.estante__valor { font-size: 0.8rem; font-weight: 700; color: var(--texto); white-space: nowrap; }
+.estante__dato--r .estante__valor { color: var(--pedir); }
+.estante__dato--is .estante__valor { color: #b54708; }
+.estante__dias { display: block; margin-top: 3px; font-size: 0.68rem; font-style: italic; }
 .estante__llega { grid-column: 1 / -1; font-size: 0.72rem; color: #1d4ed8; font-weight: 700; }
 .estante__llega:empty { display: none; }
 .estante__delta { position: absolute; right: 10px; top: 30px; font-weight: 800; color: var(--pedir); animation: subir 1.4s ease-out forwards; pointer-events: none; }

@@ -148,11 +148,28 @@
       tarjeta.querySelector(".estante__camino").style.width = Math.min((t.en_camino || 0) / escala * 100, 100) + "%";
       var marcaR = tarjeta.querySelector(".estante__marca--r"), marcaIS = tarjeta.querySelector(".estante__marca--is");
       marcaR.hidden = t.R === null; marcaIS.hidden = t.IS === null;
-      if (t.R !== null) { marcaR.style.left = Math.min(t.R / escala * 100, 100) + "%"; marcaR.title = "R " + num(t.R, 1); }
+      if (t.R !== null) { marcaR.style.left = Math.min(t.R_pedido / escala * 100, 100) + "%"; marcaR.title = "Pedir al llegar a " + t.R_pedido + " (R " + num(t.R, 1) + ")"; }
       if (t.IS !== null) { marcaIS.style.left = Math.min(t.IS / escala * 100, 100) + "%"; marcaIS.title = "IS " + num(t.IS, 1); }
       var pie = tarjeta.querySelector(".estante__pie");
+      pie.textContent = "";
       if (t.R === null) pie.textContent = t.dias < 2 ? "Sin plan: " + t.dias + " de 2 días completos" : (t.pendientes[0] || "Plan pendiente");
-      else pie.textContent = "μD " + num(t.mu, 1) + " · σD " + num(t.sigma, 1) + " · R " + num(t.R, 0) + " · IS " + num(t.IS, 0) + (t.calidad === "provisional" ? " · " + t.dias + " d" : "");
+      else {
+        [
+          ["Consumo promedio", "μD", num(t.mu, 1), "", "Consumo promedio por día"],
+          ["Variación diaria", "σD", "±" + num(t.sigma, 1), "", "Cuánto varía el consumo de un día a otro"],
+          ["Pedir al llegar a", "R", String(t.R_pedido), "r", "Punto de reorden R = " + num(t.R, 1) + ", redondeado hacia arriba: al bajar a este nivel se pide"],
+          ["Reserva de seguridad", "IS", num(t.IS, 0), "is", "Inventario de seguridad para los días de más consumo mientras llega el pedido"]
+        ].forEach(function (d) {
+          var fila = el("span", "estante__dato" + (d[3] ? " estante__dato--" + d[3] : ""));
+          fila.title = d[4];
+          var etiqueta = el("span", "estante__etiqueta", d[0]);
+          etiqueta.appendChild(el("small", "estante__simbolo", "\u00a0" + d[1]));
+          fila.appendChild(etiqueta);
+          fila.appendChild(el("span", "estante__valor", d[2]));
+          pie.appendChild(fila);
+        });
+        if (t.calidad === "provisional") pie.appendChild(el("span", "estante__dias", "Calculado con " + t.dias + " días"));
+      }
       tarjeta.querySelector(".estante__llega").textContent = t.camino ? "🚚 +" + t.camino.cantidad + " llega " + t.camino.llega : "";
       if (previo) {
         var antes = null;
@@ -284,8 +301,8 @@
       ["Z para p = " + num(p.p, 1) + " %", num(p.Z, 3)],
       ["IS = Z · σL", num(p.Z, 3) + " × " + num(p.sigma_L, 2) + " = " + num(p.IS, 2)],
       ["R = μD · L + IS", num(p.mu, 2) + " × " + num(p.L, 0) + " + " + num(p.IS, 2) + " = " + num(p.R, 2)],
-      ["¿Pedir?", p.posicion + " ≤ " + num(p.R, 2) + " → sí"],
-      ["EOQ = √(2DS / H)", num(p.Q, 2) + " → pedir " + p.sugerida + (p.paquete > 1 ? " (paquetes de " + p.paquete + ")" : "")],
+      ["¿Pedir?", p.posicion + " ≤ " + p.R_pedido + " (R " + num(p.R, 2) + " hacia arriba) → sí"],
+      ["EOQ = √(2DS / H)", num(p.Q, 2) + " → hacia arriba: pedir " + p.sugerida + (p.paquete > 1 ? " (paquetes de " + p.paquete + ")" : "")],
       ["Llegará en L", num(p.L, 0) + " días de operación"],
     ];
     var calculo = $("calculo");

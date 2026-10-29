@@ -93,7 +93,7 @@ GRUPOS_CONFIGURACION = (
         "Valores generales; cada medicamento puede tener su excepción.",
         (
             Campo("nivel_servicio", "Probabilidad de servicio (%)", simbolo="p", obligatorio=True, minimo=50, maximo=100, maximo_incluido=False,
-                  ayuda="No es el porcentaje exacto de pacientes atendidos: es la probabilidad de no agotarse durante L."),
+                  ayuda="Probabilidad de que, cada vez que se pide, el medicamento no se acabe mientras llega el pedido (durante L). Por eso casi todas las solicitudes lo encuentran."),
             Campo("tasa_mantenimiento", "Tasa anual de mantenimiento (%)", tipo="porcentaje", obligatorio=True, minimo=0, minimo_incluido=False, maximo=500,
                   ayuda="Supuesto académico: H = costo de compra × tasa. No es un estándar ni un dato medido."),
             Campo("costo_pedido", "Costo por pedido (Q)", simbolo="S", obligatorio=True, minimo=0, minimo_incluido=False,

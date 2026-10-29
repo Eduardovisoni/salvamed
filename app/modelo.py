@@ -8,6 +8,7 @@ tiempo de entrega L es constante. Las fórmulas son las mismas de la clase:
     σL   = √(L · σD²) = σD · √L
     IS   = Z · σL  (= R − L · μD)      inventario de seguridad
     R    = μD · L + IS                 punto de reorden
+    ⌈R⌉                                se pide cuando la posición llega a R redondeado hacia arriba
     N    = D / Q
     T    = Q / D · A                   días de operación entre pedidos (no es L)
     CT   = (D / Q) · S + (Q / 2) · H   costo de pedir y mantener el inventario de ciclo
@@ -45,6 +46,15 @@ class Plan:
     CT: float
     IS: float
     H_IS: float
+
+    @property
+    def R_pedido(self) -> int:
+        return punto_de_pedido(self.R)
+
+
+def punto_de_pedido(R: float) -> int:
+    """R redondeado hacia arriba, igual que la cantidad a pedir: se pide al llegar a este entero o menos."""
+    return max(ceil(R - 1e-9), 0)
 
 
 def z_de(nivel_servicio: float) -> float:
@@ -99,11 +109,11 @@ ETIQUETAS = {
 def estado_de(posicion: float, mu_d: float, plan: Plan, dias_de_aviso: float = 7) -> Estado:
     """Compara la posición de inventario con el punto de reorden."""
     if mu_d > 0:
-        dias_para_reorden = (posicion - plan.R) / mu_d
+        dias_para_reorden = (posicion - plan.R_pedido) / mu_d
         dias_de_cobertura = posicion / mu_d
     else:
         dias_para_reorden = dias_de_cobertura = None
-    if posicion <= plan.R:
+    if posicion <= plan.R_pedido:
         clave = "pedir"
     elif dias_para_reorden is not None and dias_para_reorden <= dias_de_aviso:
         clave = "pronto"

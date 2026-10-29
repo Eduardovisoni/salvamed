@@ -36,7 +36,7 @@
         <th class="num">Existencia</th>
         <th class="num" title="Pedidos realizados que faltan por recibir">En camino</th>
         <th class="num" title="Promedio de lo despachado por día completo">Consumo/día <span class="sin-mayus">μD</span></th>
-        <th class="num" title="R = μD·L + Z·σL">Punto de reorden (R)</th>
+        <th class="num" title="R = μD·L + Z·σL, redondeado hacia arriba para pedir">Punto de reorden (R)</th>
         <th class="num" title="IS = Z·σL">Inv. de seguridad</th>
         <th class="num" title="EOQ redondeada a paquetes completos">Pedir</th>
         <th>Estado</th>
@@ -60,7 +60,7 @@
           <span class="sutil">pendiente</span>
           {% endif %}
         </td>
-        <td class="num">{% if e.plan %}{{ e.plan.R | num(1) }}{% else %}<span class="sutil">—</span>{% endif %}</td>
+        <td class="num">{% if e.plan %}{{ e.plan.R_pedido }}<span class="sutil bloque">R {{ e.plan.R | num(1) }}</span>{% else %}<span class="sutil">—</span>{% endif %}</td>
         <td class="num">{% if e.plan %}{{ e.plan.IS | num(1) }}{% else %}<span class="sutil">—</span>{% endif %}</td>
         <td class="num">{% if e.plan and e.sugerida %}{{ e.sugerida | entero }}<span class="sutil bloque">EOQ {{ e.plan.Q | num(1) }}</span>{% else %}<span class="sutil">—</span>{% endif %}</td>
         <td>

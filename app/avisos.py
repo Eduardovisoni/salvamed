@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.ajustes import ajustes
 from app.consumo import hora_local
 from app.db import Medicamento, Mensaje, Pedido, PedidoLinea, Proveedor, ahora
+from app.modelo import punto_de_pedido
 
 
 def _n(valor: float | None, decimales: int = 1) -> str:
@@ -40,7 +41,7 @@ def texto_reposicion(db: Session, pedido: Pedido, evaluaciones: dict | None = No
         partes += [
             f"💊 {m.nombre_completo} ({m.unidad})",
             f"Disponible: {linea.existencia_aviso} · En camino: {(linea.posicion_aviso or 0) - (linea.existencia_aviso or 0)}",
-            f"Punto de reorden R: {_n(linea.punto_reorden)} (inventario de seguridad {_n(linea.inventario_seguridad)})",
+            f"Pedir al llegar a: {punto_de_pedido(linea.punto_reorden) if linea.punto_reorden is not None else '—'} (R = {_n(linea.punto_reorden)} hacia arriba; inventario de seguridad {_n(linea.inventario_seguridad)})",
             f"Consumo: {_n(linea.mu_d, 2)}/día, σ {_n(linea.sigma_d, 2)}",
             f"Plazo de entrega L: {_n(linea.tiempo_entrega)} días → consumo previsto en L: {_n((linea.mu_d or 0) * (linea.tiempo_entrega or 0))}",
             f"Cantidad sugerida: {linea.cantidad_pedida} (EOQ {_n(linea.cantidad_eoq, 2)}, ajustada a paquetes de {m.unidades_paquete})",
@@ -68,7 +69,7 @@ def texto_aumento(e) -> str:
         partes += [
             f"Consumo previsto en L ({_n(e.parametros['L'].valor)} días): {_n(e.consumo_en_L)}",
             f"Proyección anual D: {_n(p.D, 0)}",
-            f"Nuevo R: {_n(p.R)} · IS: {_n(p.IS)} · EOQ: {_n(p.Q, 2)} → sugerido {e.sugerida}",
+            f"Nuevo R: {_n(p.R)} → pedir al llegar a {p.R_pedido} · IS: {_n(p.IS)} · EOQ: {_n(p.Q, 2)} → sugerido {e.sugerida}",
         ]
     partes.append("Son estimaciones con los despachos registrados; no indican la causa del aumento.")
     return "\n".join(partes)
@@ -79,7 +80,7 @@ def texto_insuficiente(e, pedido: Pedido) -> str:
         [
             _encabezado(e.m.corrida_id),
             f"⚠️ El pedido #{pedido.id} ya no cubre la necesidad · {e.m.nombre_completo}",
-            f"Posición (existencia + en camino): {e.posicion} · Nuevo R: {_n(e.plan.R)}",
+            f"Posición (existencia + en camino): {e.posicion} · Nuevo R: {_n(e.plan.R)} → pedir al llegar a {e.plan.R_pedido}",
             f"Sugerido adicional: {e.sugerida}",
         ]
     )

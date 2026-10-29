@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.ajustes import ajustes
 from app.consumo import hora_local
 from app.db import Medicamento
+from app.modelo import punto_de_pedido
 
 CARPETA = Path(__file__).parent
 plantillas = Jinja2Templates(directory=CARPETA / "templates")
@@ -74,8 +75,13 @@ def _iso_dia(valor) -> str:
     return hora_local(valor).date().isoformat() if valor else ""
 
 
+def _punto_pedido(valor) -> str:
+    return "—" if valor is None else f"{punto_de_pedido(valor):,}"
+
+
 plantillas.env.filters.update(
-    num=_num, corto=_corto, entero=_entero, dinero=_dinero, fecha=_fecha, dia=_dia, hora=_hora, iso_dia=_iso_dia, unidad=_unidad
+    num=_num, corto=_corto, entero=_entero, dinero=_dinero, fecha=_fecha, dia=_dia, hora=_hora, iso_dia=_iso_dia, unidad=_unidad,
+    punto_pedido=_punto_pedido,
 )
 plantillas.env.globals["ajustes"] = ajustes
 

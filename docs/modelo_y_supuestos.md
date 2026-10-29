@@ -42,12 +42,14 @@ un año (capital inmovilizado, espacio, cadena de frío, vencimientos…). Por e
 | e) Costo total del inventario | CT = (D / Q) · S + (Q / 2) · H |
 | f) Inventario de seguridad | IS = Z · σL = R − L · μD |
 | g) Costo de mantenimiento del IS | H_IS = H · IS |
-| h) Política | Cuando la posición de inventario baje a R, pedir Q (redondeada a paquetes) |
+| h) Política | Cuando la posición de inventario baje a R redondeado hacia arriba, pedir Q redondeada hacia arriba (a paquetes) |
 
 - CT es el costo de **pedir y mantener el inventario de ciclo** según la fórmula de la clase. No es el gasto total de
   la farmacia y no incluye la compra de los medicamentos ni salarios. H_IS se muestra aparte.
 - Los cálculos se guardan sin redondear. Para pedir se sugiere la EOQ redondeada hacia arriba a paquetes completos y se
   muestra la diferencia; la cantidad redondeada ya no es exactamente la óptima.
+- R también se redondea hacia arriba para pedir: se pide cuando la posición llega a ⌈R⌉ o menos. Con el ejemplo de la
+  clase, R = 339.27 → se pide al llegar a 340 (la clase escribe 339). Así nunca se pide por debajo del cálculo.
 - El ejemplo del televisor Sony de la clase (Q 540.37, R 339.27, CT 270.19, IS 59.27) está en `tests/test_modelo.py`
   con los datos originales.
 
@@ -59,7 +61,7 @@ un año (capital inmovilizado, espacio, cadena de frío, vencimientos…). Por e
   servicio, solo para explicar de dónde viene el consumo.
 - **Posición de inventario** = existencia + lo pedido y aún no recibido (pedidos marcados como realizados). Un aviso que
   el encargado no ha confirmado no cuenta como mercancía comprada.
-- Cuando la posición llega a R se crea el pedido (pendiente de gestionar) y se avisa por Telegram. Si ya hay un pedido
+- Cuando la posición llega a R (redondeado hacia arriba) se crea el pedido (pendiente de gestionar) y se avisa por Telegram. Si ya hay un pedido
   abierto para ese medicamento no se crea otro; sí se avisa una vez si el pedido en camino ya no alcanza o si se atrasó.
 - Si varios medicamentos del mismo proveedor llegan a R en la misma revisión, van en un solo pedido: el envío se cuenta
   una vez. Para la EOQ de cada artículo, S se reparte entre los artículos que suelen ir juntos (dato del proveedor, 1 por
@@ -99,7 +101,9 @@ un año (capital inmovilizado, espacio, cadena de frío, vencimientos…). Por e
 ## Límites
 
 - El modelo supone demanda diaria independiente, aproximadamente normal, y plazo constante. No garantiza que nunca
-  falte: p es una probabilidad de no agotarse durante L, **no** el porcentaje exacto de pacientes atendidos.
+  falte: p es la probabilidad de que, cada vez que se pide, el medicamento no se acabe mientras llega el pedido (durante
+  L). La clase lo explica como «de cada 1000 solicitudes, 995 encuentran el producto»: es la misma idea vista desde las
+  solicitudes. Como un faltante solo puede pasar al final de un ciclo, casi todas las solicitudes se atienden.
 - Con pocos días la estimación es provisional (se indica cuántos días la sustentan). Ningún número de días garantiza
   confiabilidad.
 - Lo que un servicio necesitó y no se le pudo despachar por falta de existencia no queda registrado en la operación,

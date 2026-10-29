@@ -62,6 +62,7 @@ from app.db import (
     ahora,
 )
 from app.inventario import LineaPedida
+from app.modelo import punto_de_pedido
 from app.planificacion import configuracion, evaluar_varios
 
 MINUTOS_POR_SEGUNDO = 20
@@ -483,7 +484,7 @@ def _revisar_varios(db: Session, c: Corrida, meds: list[Medicamento], minuto: fl
             e = evaluaciones[m.id]
             _evento(
                 db, c, minuto, "aviso", m.id, linea.cantidad_pedida,
-                texto=f"{m.nombre} llegó al punto de reorden: posición {e.posicion} ≤ R {e.plan.R:.1f}. Aviso enviado por Telegram.",
+                texto=f"{m.nombre} llegó al punto de reorden: posición {e.posicion} ≤ {e.plan.R_pedido} (R {e.plan.R:.1f} hacia arriba). Aviso enviado por Telegram.",
                 pedido=nuevo.id,
             )
         _evento(db, c, minuto, "pausa", texto=f"Reloj en pausa de exposición: esperando «Pedido realizado» del pedido #{nuevo.id}.", pedido=nuevo.id)
@@ -632,6 +633,7 @@ def estado(db: Session, c: Corrida, desde_evento: int = 0, seleccionado: int | N
                 "estado": e.estado.clave,
                 "etiqueta": e.estado.etiqueta,
                 "R": e.plan.R if e.plan else None,
+                "R_pedido": e.plan.R_pedido if e.plan else None,
                 "IS": e.plan.IS if e.plan else None,
                 "Q": e.plan.Q if e.plan else None,
                 "sugerida": e.sugerida,
@@ -720,6 +722,7 @@ def _detalle_pausa(db: Session, c: Corrida, pedido_id: int, evaluaciones) -> dic
         "p": e.parametros["p"].valor if e else None,
         "sigma_L": e.plan.sigma_L if e and e.plan else None,
         "R": linea.punto_reorden,
+        "R_pedido": punto_de_pedido(linea.punto_reorden) if linea.punto_reorden is not None else None,
         "IS": linea.inventario_seguridad,
         "Q": linea.cantidad_eoq,
         "sugerida": linea.cantidad_sugerida,
