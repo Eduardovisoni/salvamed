@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+{% block titulo %}Despacho · SALVAMED{% endblock %}
+{% block contenido %}
+<div class="titulo-pagina">
+  <div>
+    <h1>Despacho a servicios</h1>
+    <p class="sutil">La farmacia interna entrega medicamentos a un servicio del sanatorio. Busca por nombre, presentación o código. No se registran datos de pacientes.</p>
+  </div>
+</div>
+
+<section class="resumen" aria-label="Resumen">
+  <a class="tarjeta tarjeta--pedir" href="/medicamentos?estado=pedir">
+    <span class="tarjeta__numero">{{ conteo.pedir }}</span>
+    <span class="tarjeta__texto">Pedir ya</span>
+    <span class="tarjeta__nota">Posición de inventario en el punto de reorden o debajo</span>
+  </a>
+  <a class="tarjeta tarjeta--pronto" href="/pedidos">
+    <span class="tarjeta__numero">{{ por_gestionar }}</span>
+    <span class="tarjeta__texto">Pedidos por gestionar</span>
+    <span class="tarjeta__nota">Avisos enviados que el encargado no ha confirmado</span>
+  </a>
+  <a class="tarjeta tarjeta--costo" href="/costos">
+    <span class="tarjeta__numero">{{ hoy.numero_despachos }}</span>
+    <span class="tarjeta__texto">Despachos de hoy</span>
+    <span class="tarjeta__nota">{{ hoy.unidades }} unidades entregadas a los servicios</span>
+  </a>
+  <a class="tarjeta tarjeta--bien" href="/costos">
+    <span class="tarjeta__numero">{{ hoy.consumido | dinero }}</span>
+    <span class="tarjeta__texto">Costo de lo consumido hoy</span>
+    <span class="tarjeta__nota">Valorizado al costo promedio de compra</span>
+  </a>
+</section>
+
+{% if hecho %}
+<div class="flotante" role="status" aria-live="polite">
+  <span class="flotante__icono" aria-hidden="true">✓</span>
+  <span class="flotante__texto">
+    <strong>Despacho #{{ hecho.id }} a {{ hecho.servicio }}</strong>
+    {% for linea, m in lineas_hecho %}{{ linea.cantidad }} × {{ m.nombre_completo }}{% if not loop.last %} · {% endif %}{% endfor %}
+    <a href="/despachos/{{ hecho.id }}">Ver o anular</a>
+  </span>
+  <button class="flotante__cerrar" type="button" aria-label="Cerrar aviso">×</button>
+</div>
+{% for pedido, lineas in nuevos_pedidos %}
+<div class="aviso aviso--pedir" role="status">
+  ⚠️ Reposición necesaria: {% for l, m in lineas %}<strong>{{ m.nombre_completo }}</strong> llegó al punto de reorden ({{ l.punto_reorden | num(1) }}). {% endfor %}
+  Se creó el <a href="/pedidos/{{ pedido.id }}">pedido #{{ pedido.id }}</a> y se avisó al encargado de compras.
+</div>
+{% endfor %}
+{% endif %}
+
+{% if error %}
+<div class="aviso aviso--error" role="alert">{{ error }}</div>
+{% endif %}
+
+<div class="venta">
+  <section class="panel venta__buscar">
+    <label class="oculto" for="buscar">Buscar medicamento</label>
+    <input id="buscar" class="campo__entrada venta__entrada" type="search" autocomplete="off" autofocus
+      placeholder="Escribe un nombre o un código y presiona Enter…">
+    <ul id="resultados" class="resultados" aria-live="polite"></ul>
+    <p class="vacio" {% if catalogo %}hidden{% endif %}>
+      No hay medicamentos. <a href="/medicamentos/nuevo">Agrega uno</a> o carga la demostración en <a href="/configuracion#datos">Configuración</a>.
+    </p>
+  </section>
+
+  <form class="panel venta__carrito" method="post" action="/despachos" id="form-despacho" data-una-vez>
+    <h2>Lista de despacho</h2>
+    <input type="hidden" name="token" value="{{ token }}">
+    <div class="campo">
+      <label for="servicio">Servicio que recibe</label>
+      <select class="campo__entrada" id="servicio" name="servicio" required>
+        <option value="">Elige un servicio…</option>
+        {% for s in servicios %}<option {% if s == servicio %}selected{% endif %}>{{ s }}</option>{% endfor %}
+      </select>
+    </div>
+    <table class="tabla tabla--compacta carrito">
+      <thead><tr><th>Medicamento</th><th class="num">Hay</th><th class="num">Cantidad</th><th><span class="oculto">Quitar</span></th></tr></thead>
+      <tbody id="lineas"></tbody>
+    </table>
+    <p id="vacio" class="vacio">La lista está vacía. Una lista sin confirmar no descuenta nada.</p>
+    <div class="campo">
+      <label for="nota">Nota <span class="sutil">(opcional, sin datos de pacientes)</span></label>
+      <input class="campo__entrada" id="nota" name="nota" maxlength="200" placeholder="Ej. Reposición del carro de paro">
+    </div>
+    <div class="carrito__total"><span>Unidades</span><strong id="total">0</strong></div>
+    <div class="acciones">
+      <button class="boton boton--primario boton--grande" type="submit" id="confirmar" disabled>Confirmar despacho</button>
+      <button class="boton" type="button" id="vaciar">Vaciar</button>
+    </div>
+  </form>
+</div>
+
+<section class="panel">
+  <h2>Últimos despachos</h2>
+  {% if recientes %}
+  <div class="tabla-envoltura tabla-envoltura--plana">
+    <table class="tabla tabla--compacta">
+      <thead><tr><th>#</th><th>Fecha</th><th>Servicio</th><th class="num">Costo</th><th>Estado</th><th></th></tr></thead>
+      <tbody>
+        {% for d in recientes %}
+        <tr>
+          <td>{{ d.id }}</td>
+          <td class="num-izq">{{ d.fecha | fecha }}</td>
+          <td>{{ d.servicio }}</td>
+          <td class="num">{{ d.costo_total | dinero }}</td>
+          <td>{% if d.estado == "anulado" %}<span class="estado estado--pedir">Anulado</span>{% else %}<span class="estado estado--bien">Confirmado</span>{% endif %}</td>
+          <td><a href="/despachos/{{ d.id }}">Ver</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="vacio">Todavía no hay despachos.</p>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    var catalogo = {{ catalogo | tojson }};
+    var previo = {{ lista | tojson }};
+    var agregar = {{ agregar | tojson }};
+    var lista = [];
+    var buscar = document.getElementById("buscar");
+    var resultados = document.getElementById("resultados");
+    var cuerpo = document.getElementById("lineas");
+    var formulario = document.getElementById("form-despacho");
+    var servicio = document.getElementById("servicio");
+
+    function quitarAcentos(t) { return (t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); }
+    function porId(id) { return catalogo.find(function (m) { return m.id === id; }); }
+
+    function coincidencias(texto) {
+      var t = quitarAcentos(texto.trim());
+      if (!t) return catalogo.slice(0, 8);
+      var palabras = t.split(/\s+/);
+      return catalogo.filter(function (m) {
+        var todo = quitarAcentos(m.nombre + " " + m.presentacion + " " + m.sku);
+        return palabras.every(function (p) { return todo.indexOf(p) !== -1; });
+      }).slice(0, 8);
+    }
+
+    function pintarResultados() {
+      resultados.innerHTML = "";
+      coincidencias(buscar.value).forEach(function (m) {
+        var li = document.createElement("li");
+        var boton = document.createElement("button");
+        boton.type = "button";
+        boton.className = "resultado-item" + (m.existencia <= 0 ? " resultado-item--agotado" : "");
+        boton.innerHTML = '<span><strong></strong> <span class="sutil"></span><span class="bloque sutil"></span></span><span class="resultado-item__precio"></span>';
+        boton.querySelector("strong").textContent = m.nombre;
+        boton.querySelectorAll(".sutil")[0].textContent = m.presentacion;
+        boton.querySelectorAll(".sutil")[1].textContent = m.unidad + (m.sku ? " · " + m.sku : "");
+        boton.querySelector(".resultado-item__precio").textContent = "Hay " + m.existencia;
+        boton.addEventListener("click", function () { sumar(m.id, 1); buscar.select(); });
+        li.appendChild(boton);
+        resultados.appendChild(li);
+      });
+    }
+
+    function sumar(id, cantidad) {
+      if (!porId(id)) return;
+      var linea = lista.find(function (l) { return l.id === id; });
+      if (linea) linea.cantidad = (parseInt(linea.cantidad, 10) || 0) + cantidad; else lista.push({ id: id, cantidad: cantidad });
+      pintarLista();
+    }
+
+    function revisar() {
+      var total = 0, valido = lista.length > 0 && servicio.value !== "";
+      lista.forEach(function (linea) {
+        var m = porId(linea.id), cantidad = parseInt(linea.cantidad, 10);
+        if (!(cantidad >= 1) || cantidad > m.existencia) valido = false;
+        if (cantidad > 0) total += cantidad;
+      });
+      document.getElementById("total").textContent = total;
+      document.getElementById("confirmar").disabled = !valido;
+    }
+
+    function pintarLista() {
+      cuerpo.innerHTML = "";
+      lista.forEach(function (linea, i) {
+        var m = porId(linea.id);
+        var tr = document.createElement("tr");
+        var excede = parseInt(linea.cantidad, 10) > m.existencia;
+        tr.innerHTML = '<td><strong></strong> <span class="sutil"></span><span class="bloque sutil aviso-linea"></span>' +
+          '<input type="hidden" name="medicamento_id"></td><td class="num"></td>' +
+          '<td class="num"><input class="campo__entrada carrito__cantidad" name="cantidad" type="number" min="1" step="1" inputmode="numeric"></td>' +
+          '<td><button type="button" class="boton boton--chico" aria-label="Quitar">×</button></td>';
+        tr.querySelector("strong").textContent = m.nombre;
+        tr.querySelector(".sutil").textContent = m.presentacion;
+        tr.querySelector(".aviso-linea").textContent = excede ? "Solo hay " + m.existencia + " " + m.unidad : "";
+        tr.querySelector("input[type=hidden]").value = m.id;
+        tr.children[1].textContent = m.existencia;
+        var entrada = tr.querySelector(".carrito__cantidad");
+        entrada.value = linea.cantidad;
+        entrada.addEventListener("input", function () { linea.cantidad = entrada.value; revisar(); });
+        entrada.addEventListener("change", pintarLista);
+        tr.querySelector("button").addEventListener("click", function () { lista.splice(i, 1); pintarLista(); });
+        if (excede) tr.classList.add("fila--error");
+        cuerpo.appendChild(tr);
+      });
+      document.getElementById("vacio").hidden = lista.length > 0;
+      revisar();
+    }
+
+    buscar.addEventListener("input", pintarResultados);
+    buscar.addEventListener("keydown", function (evento) {
+      if (evento.key !== "Enter") return;
+      evento.preventDefault();
+      var texto = quitarAcentos(buscar.value.trim());
+      var exacto = catalogo.find(function (m) { return m.sku && quitarAcentos(m.sku) === texto; });
+      var encontrados = exacto ? [exacto] : coincidencias(buscar.value);
+      if (encontrados.length) { sumar(encontrados[0].id, 1); buscar.value = ""; pintarResultados(); }
+    });
+    servicio.addEventListener("change", revisar);
+    document.getElementById("vaciar").addEventListener("click", function () { lista = []; pintarLista(); });
+    formulario.addEventListener("submit", function (evento) {
+      if (document.getElementById("confirmar").disabled) evento.preventDefault();
+    });
+
+    previo.forEach(function (l) { if (porId(l.id)) lista.push({ id: l.id, cantidad: l.cantidad }); });
+    if (agregar && porId(agregar)) sumar(agregar, 1);
+    pintarResultados();
+    pintarLista();
+  })();
+</script>
+{% endblock %}

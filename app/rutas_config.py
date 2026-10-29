@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app import importacion, telegram
 from app.ajustes import ajustes
-from app.db import Importacion, Medicamento, Mensaje, Proveedor, motor, sesion
+from app.db import Importacion, Medicamento, Mensaje, Proveedor, lista_de_servicios, motor, sesion
 from app.formulario import CAMPOS_PROVEEDOR, GRUPOS_CONFIGURACION, campos, leer, valores_de
 from app.inventario import ErrorDeOperacion
 from app.migraciones import tablas_de_respaldo
@@ -30,7 +30,7 @@ def _pagina_config(request, db: Session, valores=None, errores=None, mensaje="",
             "pestana": "configuracion",
             "cfg": cfg,
             "grupos": GRUPOS_CONFIGURACION,
-            "valores": valores or valores_de(cfg, campos(GRUPOS_CONFIGURACION)),
+            "valores": valores or {**valores_de(cfg, campos(GRUPOS_CONFIGURACION)), "servicios": cfg.servicios},
             "errores": errores or {},
             "dias": DIAS,
             "proveedores": proveedores,
@@ -57,7 +57,13 @@ async def guardar(request: Request, db: Session = Depends(sesion)):
     valores, datos, errores = leer(formulario, campos(GRUPOS_CONFIGURACION))
     dias_semana = "".join("1" if formulario.get(f"dia_{i}") else "0" for i in range(7))
     if dias_semana == "0000000":
-        errores["dias_semana"] = "La farmacia debe abrir al menos un día."
+        errores["dias_semana"] = "Debe operar al menos un día."
+    servicios = lista_de_servicios(str(formulario.get("servicios", "")))
+    if not servicios:
+        errores["servicios"] = "Escribe al menos un servicio."
+    elif any(len(s) > 60 for s in servicios) or len("\n".join(servicios)) > 600:
+        errores["servicios"] = "Cada servicio puede tener hasta 60 caracteres."
+    valores["servicios"] = str(formulario.get("servicios", ""))
     if not errores and datos["hora_cierre"] <= datos["hora_apertura"]:
         errores["hora_cierre"] = "Debe ser después de la hora de apertura."
     if errores:
@@ -66,6 +72,7 @@ async def guardar(request: Request, db: Session = Depends(sesion)):
     for campo, valor in datos.items():
         setattr(cfg, campo, valor)
     cfg.dias_semana = dias_semana
+    cfg.servicios = "\n".join(dict.fromkeys(servicios))
     db.commit()
     return RedirectResponse("/configuracion?mensaje=Configuración guardada.", status_code=303)
 
@@ -96,19 +103,19 @@ async def editar_proveedor(request: Request, proveedor_id: int, db: Session = De
     return RedirectResponse("/configuracion?mensaje=Proveedor guardado.#proveedores", status_code=303)
 
 
-def _reevaluar(tareas: BackgroundTasks) -> None:
-    from app import despacho
+def _reevaluar(tareas_fondo: BackgroundTasks) -> None:
+    from app import tareas
 
-    despacho.reevaluar_operacion()
-    despacho.programar(tareas)
+    tareas.reevaluar_operacion()
+    tareas.programar(tareas_fondo)
 
 
 @rutas.post("/configuracion/demo")
-def cargar_demo(tareas: BackgroundTasks, db: Session = Depends(sesion)):
+def cargar_demo(tareas_fondo: BackgroundTasks, db: Session = Depends(sesion)):
     from app.demo import cargar_demo as cargar
 
     resumen = cargar(db)
-    _reevaluar(tareas)
+    _reevaluar(tareas_fondo)
     texto = f"Demostración cargada: {resumen['creados']} medicamentos nuevos, {resumen['actualizados']} ya existían."
     return RedirectResponse(f"/medicamentos?mensaje={texto}", status_code=303)
 
@@ -118,14 +125,8 @@ def cargar_demo(tareas: BackgroundTasks, db: Session = Depends(sesion)):
 
 def _opciones(formulario) -> importacion.Opciones:
     ambigua = str(formulario.get("precio_unitario_q", "ignorar"))
-    margen = str(formulario.get("margen_simulado", "")).strip()
-    try:
-        margen_valor = float(margen) / 100 if margen else None
-    except ValueError:
-        margen_valor = None
     return importacion.Opciones(
-        columna_ambigua={"precio_unitario_q": ambigua} if ambigua in ("costo_compra", "precio_venta") else {},
-        margen_simulado=margen_valor,
+        columna_ambigua={"precio_unitario_q": ambigua} if ambigua == "costo_compra" else {},
         ajustar_existencias=formulario.get("ajustar_existencias") == "1",
         aplicar_configuracion=formulario.get("aplicar_configuracion", "1") == "1",
         importar_semanas=formulario.get("importar_semanas", "1") == "1",
@@ -199,13 +200,13 @@ async def remapear(request: Request, importacion_id: int, db: Session = Depends(
 
 
 @rutas.post("/importar/{importacion_id}/confirmar")
-def confirmar(importacion_id: int, tareas: BackgroundTasks, db: Session = Depends(sesion)):
+def confirmar(importacion_id: int, tareas_fondo: BackgroundTasks, db: Session = Depends(sesion)):
     hecha = _importacion_de(db, importacion_id)
     try:
         importacion.aplicar(db, hecha)
     except ErrorDeOperacion as problema:
         return RedirectResponse(f"/importar/{importacion_id}?error={problema}", status_code=303)
-    _reevaluar(tareas)
+    _reevaluar(tareas_fondo)
     return RedirectResponse(f"/importar/{importacion_id}", status_code=303)
 
 

@@ -28,7 +28,7 @@
 <section class="resumen" aria-label="Resumen">
   <div class="tarjeta tarjeta--bien"><span class="tarjeta__numero">{{ creados }}</span><span class="tarjeta__texto">Medicamentos nuevos</span><span class="tarjeta__nota">Su existencia entra como apertura</span></div>
   <div class="tarjeta tarjeta--costo"><span class="tarjeta__numero">{{ actualizados }}</span><span class="tarjeta__texto">Ya existen</span><span class="tarjeta__nota">Se actualiza el catálogo, no la existencia</span></div>
-  <div class="tarjeta tarjeta--pronto"><span class="tarjeta__numero">{{ historial | length }}</span><span class="tarjeta__texto">Días de historia</span><span class="tarjeta__nota">No mueven existencias</span></div>
+  <div class="tarjeta tarjeta--pronto"><span class="tarjeta__numero">{{ historial | length }}</span><span class="tarjeta__texto">Filas de consumo diario</span><span class="tarjeta__nota">No mueven existencias</span></div>
   <div class="tarjeta tarjeta--pedir"><span class="tarjeta__numero">{{ con_error }}</span><span class="tarjeta__texto">Filas con error</span><span class="tarjeta__nota">No se importan</span></div>
 </section>
 
@@ -63,12 +63,7 @@
           {% set actual = opciones.columna_ambigua.get("precio_unitario_q", "ignorar") %}
           <option value="ignorar" {% if actual == "ignorar" %}selected{% endif %}>No importarla</option>
           <option value="costo_compra" {% if actual == "costo_compra" %}selected{% endif %}>Es costo de compra</option>
-          <option value="precio_venta" {% if actual == "precio_venta" %}selected{% endif %}>Es precio de venta</option>
         </select>
-      </div>
-      <div class="campo">
-        <label for="margen_simulado">Precio de venta simulado si falta (margen %)</label>
-        <input class="campo__entrada" id="margen_simulado" name="margen_simulado" type="number" min="0" step="any" value="{{ (opciones.margen_simulado * 100) | corto if opciones.margen_simulado is not none else '' }}">
       </div>
     </div>
     <input type="hidden" name="importar_semanas" value="{{ '1' if opciones.importar_semanas else '0' }}">
@@ -91,7 +86,7 @@
   <h2>Catálogo y apertura</h2>
   <div class="tabla-envoltura tabla-envoltura--plana">
     <table class="tabla tabla--compacta">
-      <thead><tr><th>Fila</th><th>Acción</th><th>Medicamento</th><th>Unidad</th><th>Proveedor</th><th class="num">Costo</th><th class="num">Precio</th><th class="num">Paquete</th><th class="num">Existencia</th><th class="num">L</th><th class="num">Semanas</th><th>Notas</th></tr></thead>
+      <thead><tr><th>Fila</th><th>Acción</th><th>Medicamento</th><th>Unidad</th><th>Proveedor</th><th class="num">Costo</th><th class="num">Paquete</th><th class="num">Existencia</th><th class="num">L</th><th class="num">Semanas</th><th>Notas</th></tr></thead>
       <tbody>
         {% for f in catalogo %}
         <tr class="{% if f.accion == 'error' %}fila--error{% endif %}">
@@ -101,7 +96,6 @@
           <td>{{ f.datos.unidad }}</td>
           <td>{{ f.datos.proveedor }}</td>
           <td class="num">{{ f.datos.costo_compra | dinero }}</td>
-          <td class="num">{{ f.datos.precio_venta | dinero }}{% if f.precio_generado %}<span class="sutil bloque">simulado</span>{% endif %}</td>
           <td class="num">{{ f.datos.unidades_paquete or "—" }}</td>
           <td class="num">{{ f.datos.existencia if f.datos.existencia is not none else "—" }}</td>
           <td class="num">{{ f.datos.tiempo_entrega | corto }}</td>
@@ -118,7 +112,7 @@
 {% if historial %}
 <section class="panel">
   <h2>Historial diario</h2>
-  <p class="sutil">No mueve existencias. Un día ya importado o en que el sistema ya registra ventas se omite al aplicar.</p>
+  <p class="sutil">No mueve existencias. Un día ya importado o en que el sistema ya registra despachos se omite al aplicar.</p>
   <div class="tabla-envoltura tabla-envoltura--plana tabla--alta">
     <table class="tabla tabla--compacta">
       <thead><tr><th>Fila</th><th>Fecha</th><th>Medicamento</th><th class="num">Cantidad</th><th>Notas</th></tr></thead>

@@ -1,7 +1,7 @@
 """Evaluación de cada medicamento: parámetros, plan de la clase 12 y estado.
 
 Separa tres niveles:
-- datos de operación (ventas, recepciones, ajustes) que registra el empleado,
+- datos de operación (despachos, recepciones, ajustes) que registra el personal de farmacia,
 - parámetros administrativos (configuración general y excepciones por medicamento),
 - resultados que calcula el sistema (μD, σD, D, Q, R, IS, ...).
 
@@ -34,9 +34,9 @@ from app.db import (
     Pedido,
     PedidoLinea,
     PlanDiario,
+    Despacho,
+    DespachoLinea,
     Proveedor,
-    Venta,
-    VentaLinea,
     en_ambito,
 )
 from app.modelo import ETIQUETAS, Datos, Estado, Plan, calcular_plan, cantidad_por_paquetes, estado_de
@@ -144,16 +144,16 @@ def _inicio_del_dia(dia: date) -> datetime:
     return datetime.combine(dia, time(), GUATEMALA)
 
 
-def _ventas_por_dia(db: Session, ids: list[int], desde: date, momento: datetime, corrida_id):
+def _despachos_por_dia(db: Session, ids: list[int], desde: date, momento: datetime, corrida_id):
     consulta = (
-        select(VentaLinea.medicamento_id, Venta.fecha, VentaLinea.cantidad)
-        .join(Venta, Venta.id == VentaLinea.venta_id)
+        select(DespachoLinea.medicamento_id, Despacho.fecha, DespachoLinea.cantidad)
+        .join(Despacho, Despacho.id == DespachoLinea.despacho_id)
         .where(
-            VentaLinea.medicamento_id.in_(ids),
-            Venta.estado == "confirmada",
-            en_ambito(Venta.corrida_id, corrida_id),
-            Venta.fecha >= _inicio_del_dia(desde),
-            Venta.fecha <= momento,
+            DespachoLinea.medicamento_id.in_(ids),
+            Despacho.estado == "confirmado",
+            en_ambito(Despacho.corrida_id, corrida_id),
+            Despacho.fecha >= _inicio_del_dia(desde),
+            Despacho.fecha <= momento,
         )
     )
     resultado = defaultdict(lambda: defaultdict(int))
@@ -201,7 +201,7 @@ def evaluar_varios(db: Session, medicamentos: list[Medicamento], momento: dateti
     ventana = dias_de_ventana(hoy, cfg.ventana_dias, cfg.dias_semana)
     desde = ventana[0] if ventana else hoy
     ids = [m.id for m in medicamentos]
-    ventas = _ventas_por_dia(db, ids, desde, momento, corrida_id)
+    despachos = _despachos_por_dia(db, ids, desde, momento, corrida_id)
     diarios, semanales = _historico(db, ids, desde)
     abiertas = _lineas_abiertas(db, ids)
     proveedores = {
@@ -211,7 +211,7 @@ def evaluar_varios(db: Session, medicamentos: list[Medicamento], momento: dateti
     resultado = {}
     for m in medicamentos:
         consumo = consumo_de(
-            ventas[m.id], diarios[m.id], semanales[m.id], m.observado_desde, hoy, cfg.ventana_dias, cfg.dias_semana
+            despachos[m.id], diarios[m.id], semanales[m.id], m.observado_desde, hoy, cfg.ventana_dias, cfg.dias_semana
         )
         resultado[m.id] = _evaluar(m, consumo, proveedores.get(m.proveedor_id), cfg, abiertas[m.id], hoy, momento)
     return resultado
@@ -325,3 +325,26 @@ def registrar_plan_del_dia(db: Session, e: Evaluacion) -> None:
 
 def manana(dia: date) -> date:
     return dia + timedelta(days=1)
+
+
+def consumo_por_servicio(db: Session, m: Medicamento, momento: datetime) -> list[tuple[str, int]]:
+    """Unidades despachadas a cada servicio en la ventana de días completos (para explicar, no entra al modelo)."""
+    from sqlalchemy import func
+
+    cfg = configuracion(db)
+    ventana = dias_de_ventana(dia_local(momento), cfg.ventana_dias, cfg.dias_semana)
+    if not ventana:
+        return []
+    filas = db.execute(
+        select(Despacho.servicio, func.sum(DespachoLinea.cantidad))
+        .join(Despacho, Despacho.id == DespachoLinea.despacho_id)
+        .where(
+            DespachoLinea.medicamento_id == m.id,
+            Despacho.estado == "confirmado",
+            Despacho.fecha >= _inicio_del_dia(ventana[0]),
+            Despacho.fecha < _inicio_del_dia(dia_local(momento)),
+        )
+        .group_by(Despacho.servicio)
+        .order_by(func.sum(DespachoLinea.cantidad).desc())
+    ).all()
+    return [(servicio, int(total)) for servicio, total in filas]

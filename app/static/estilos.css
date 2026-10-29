@@ -528,7 +528,7 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: 0.85em; backgr
 .cuentas { margin: 0; display: grid; gap: 8px; }
 .cuentas div { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px dashed var(--borde); padding-bottom: 6px; }
 .cuentas dt { color: var(--sutil); font-size: 0.9rem; }
-.cuentas dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.cuentas dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .cuentas__total dd { color: var(--bien); font-size: 1.1rem; }
 .cuentas__alerta dd { color: var(--pedir); }
 .cuentas--fila { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
@@ -610,14 +610,21 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: 0.85em; backgr
 
 .sim-rejilla { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(280px, 1fr); gap: 18px; align-items: start; }
 .sim-escena { padding: 14px; }
-.sim-tienda { position: relative; display: grid; grid-template-columns: 110px 1fr 120px; gap: 10px; align-items: stretch; height: 120px; margin-bottom: 14px; }
+.sim-tienda { position: relative; display: grid; grid-template-columns: 210px 1fr 130px; gap: 10px; align-items: stretch; height: 222px; margin-bottom: 14px; }
+.sim-servicios { list-style: none; margin: 0; padding: 0; display: grid; grid-auto-rows: 1fr; gap: 4px; }
+.sim-servicio { display: flex; align-items: center; gap: 8px; padding: 0 10px; border-radius: 10px; background: #ede9fe; color: #4c1d95; font-size: 0.8rem; font-weight: 700; }
+.sim-servicio__icono { font-size: 1.05rem; }
+.sim-servicio__nombre { flex: 1; }
+.sim-servicio__cuenta { font-variant-numeric: tabular-nums; color: #6d28d9; font-weight: 600; }
+.sim-servicio--pide { animation: pide 0.6s ease-out; }
+@keyframes pide { 30% { background: #c4b5fd; } }
 .sim-puerta, .sim-caja { display: grid; place-items: center; align-content: center; gap: 2px; border-radius: 12px; font-weight: 700; font-size: 0.85rem; text-align: center; }
 .sim-puerta { background: #ede9fe; color: #5b21b6; }
 .sim-caja { background: #ccfbf1; color: #115e59; }
 .sim-caja small { display: block; font-size: 0.75rem; font-variant-numeric: tabular-nums; }
 .sim-puerta span, .sim-caja span { font-size: 1.6rem; }
 .sim-pasillo { position: relative; border-radius: 12px; background: repeating-linear-gradient(90deg, #faf5ff, #faf5ff 22px, #f5f3ff 22px, #f5f3ff 44px); overflow: hidden; }
-.cliente { position: absolute; left: -36px; font-size: 1.7rem; transition: left 0.85s cubic-bezier(.4, .1, .3, 1), opacity 0.5s; will-change: left; }
+.cliente { position: absolute; left: -36px; font-size: 1.5rem; transition: left 0.85s cubic-bezier(.4, .1, .3, 1), opacity 0.5s; will-change: left; }
 .cliente--caminando { left: calc(100% - 40px); }
 .cliente--sale { opacity: 0; }
 .ticket { position: absolute; right: 44px; max-width: 70%; background: #fff; border: 1px solid var(--borde); border-radius: 8px; padding: 3px 8px; font-size: 0.75rem; font-weight: 600; box-shadow: var(--sombra); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: ticket 1.5s ease-out forwards; }

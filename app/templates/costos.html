@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block titulo %}Costos · SALVAMED{% endblock %}
+{% block contenido %}
+<div class="titulo-pagina">
+  <div>
+    <h1>Costos</h1>
+    <p class="sutil">Lo que costó lo que consumieron los servicios y lo que se compró. Los importes de la demostración son simulados.</p>
+  </div>
+</div>
+
+<div class="dinero">
+  {% for titulo, r in (("Hoy", hoy), ("Últimos 30 días", mes), ("Desde el inicio", total)) %}
+  <section class="panel">
+    <h2>{{ titulo }}</h2>
+    <dl class="cuentas">
+      <div class="cuentas__total"><dt>Costo de lo consumido ({{ r.numero_despachos }} despachos, {{ r.unidades }} unidades)</dt><dd>{{ r.consumido | dinero }}</dd></div>
+      {% for servicio, costo, numero in r.por_servicio %}
+      <div><dt>{{ servicio }} <span class="sutil">({{ numero }})</span></dt><dd>{{ costo | dinero }}</dd></div>
+      {% endfor %}
+      <div><dt>Compras recibidas</dt><dd>{{ r.compras_recibidas | dinero }}</dd></div>
+    </dl>
+  </section>
+  {% endfor %}
+</div>
+
+<section class="panel">
+  <h2>Pedidos sin recibir</h2>
+  <dl class="cuentas cuentas--fila">
+    <div><dt>Comprometido en pedidos realizados</dt><dd>{{ total.compromisos | dinero }}</dd></div>
+    <div><dt>Estimado en avisos por gestionar</dt><dd>{{ total.por_gestionar | dinero }}</dd></div>
+  </dl>
+  <p class="sutil">
+    Costo de lo consumido: unidades despachadas × costo promedio ponderado de compra, guardado al momento del despacho.
+    No es una factura ni un cargo al paciente: SALVAMED no maneja cobros ni datos de pacientes.
+    Comprar no es consumir: el costo de consumo aparece al despachar. Cada pedido suma su envío una sola vez.
+    SALVAMED no registra pagos al proveedor.
+  </p>
+</section>
+
+<section class="panel">
+  <h2>Despachos</h2>
+  {% if despachos %}
+  <div class="tabla-envoltura tabla-envoltura--plana">
+    <table class="tabla tabla--compacta">
+      <thead><tr><th>#</th><th>Fecha</th><th>Servicio</th><th class="num">Costo</th><th>Estado</th></tr></thead>
+      <tbody>
+        {% for d in despachos %}
+        <tr>
+          <td><a class="enlace-fila" href="/despachos/{{ d.id }}">#{{ d.id }}</a></td>
+          <td class="num-izq">{{ d.fecha | fecha }}</td>
+          <td>{{ d.servicio }}</td>
+          <td class="num">{{ d.costo_total | dinero }}</td>
+          <td>{% if d.estado == "anulado" %}<span class="estado estado--pedir">Anulado</span>{% else %}<span class="estado estado--bien">Confirmado</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="vacio">Todavía no hay despachos.</p>
+  {% endif %}
+</section>
+{% endblock %}

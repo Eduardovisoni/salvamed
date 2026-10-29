@@ -4,8 +4,8 @@
 {% block contenido %}
 <div class="titulo-pagina">
   <div>
-    <h1>Simulación <span class="estado estado--pronto">Datos simulados · no es inventario real</span></h1>
-    <p class="sutil">Una farmacia en tiempo acelerado con las mismas fórmulas y reglas que la operación. Sus ventas, dinero, pedidos y mensajes están separados.</p>
+    <h1>Simulación del sanatorio <span class="estado estado--pronto">Datos simulados · no es inventario real</span></h1>
+    <p class="sutil">Los servicios del sanatorio piden medicamentos a la farmacia interna las 24 horas, en tiempo acelerado, con las mismas fórmulas y reglas que la operación. Sus despachos, costos, pedidos y mensajes están separados.</p>
   </div>
   <details class="nueva-corrida">
     <summary class="boton">{% if corrida %}Reiniciar o cambiar escenario{% else %}Nueva corrida{% endif %}</summary>
@@ -21,7 +21,7 @@
         <input class="campo__entrada" id="semilla" name="semilla" type="number" min="0" step="1" value="{{ corrida.semilla if corrida else 2026 }}">
       </div>
       <div class="campo">
-        <label for="demora">Demora de gestión del encargado (horas virtuales)</label>
+        <label for="demora">Demora de gestión del encargado de compras (horas virtuales)</label>
         <input class="campo__entrada" id="demora" name="demora" type="number" min="0" max="72" step="0.5" value="{{ (corrida.demora_gestion / 60) | corto if corrida else 0 }}">
         <span class="campo__ayuda">0 = respuesta inmediata (supuesto). Úsalo para comparar corridas con la misma semilla.</span>
       </div>
@@ -32,7 +32,7 @@
 
 {% if not corrida %}
 <section class="panel vacio">
-  <p>No hay una corrida activa. Elige un escenario y empieza: la farmacia arranca sin historia y el plan aparece cuando hay días completos de ventas.</p>
+  <p>No hay una corrida activa. Elige un escenario y empieza: la farmacia interna arranca sin historia y el plan aparece cuando hay días completos de despachos.</p>
   <ul class="politica" style="text-align:left;max-width:720px;margin:0 auto">
     {% for clave, e in escenarios.items() %}<li><strong>{{ e.titulo }}.</strong> {{ e.descripcion }}</li>{% endfor %}
   </ul>
@@ -55,7 +55,7 @@
       <button class="boton" type="button" data-accion="evento">Siguiente evento</button>
     </div>
     <div class="sim-estado" id="estado-reloj">En pausa</div>
-    <p class="sim-escala sutil">×1: 1 s real = {{ minutos_por_segundo }} min simulados (un día de farmacia ≈ <span id="seg-dia">72</span> s). La velocidad no cambia los resultados.</p>
+    <p class="sim-escala sutil">×1: 1 s real = {{ minutos_por_segundo }} min simulados (un día del sanatorio ≈ <span id="seg-dia">72</span> s). La velocidad no cambia los resultados.</p>
   </section>
 
   <section class="sim-pausa" id="pausa" hidden>
@@ -63,7 +63,7 @@
       <span class="sim-pausa__icono" aria-hidden="true">⏸</span>
       <div>
         <h2 id="pausa-titulo">Pausa de exposición</h2>
-        <p class="sutil">El reloj virtual se detuvo en el instante del aviso para explicarlo. En una farmacia real las ventas no se detienen mientras el encargado responde; aquí se supone <span id="pausa-supuesto">respuesta inmediata en tiempo virtual</span>.</p>
+        <p class="sutil">El reloj virtual se detuvo en el instante del aviso para explicarlo. En el sanatorio real los servicios siguen pidiendo mientras el encargado de compras responde; aquí se supone <span id="pausa-supuesto">respuesta inmediata en tiempo virtual</span>.</p>
       </div>
     </div>
     <div class="sim-pausa__cuerpo">
@@ -81,16 +81,16 @@
   <div class="sim-rejilla">
     <section class="panel sim-escena">
       <div class="sim-tienda" id="tienda">
-        <div class="sim-puerta"><span aria-hidden="true">🚪</span> Entrada</div>
+        <ul class="sim-servicios" id="servicios" aria-label="Servicios del sanatorio"></ul>
         <div class="sim-pasillo" id="pasillo" aria-hidden="true"></div>
-        <div class="sim-caja"><span aria-hidden="true">🧾</span> Caja<small id="caja-total"></small></div>
+        <div class="sim-caja"><span aria-hidden="true">💊</span> Farmacia interna<small id="caja-total"></small></div>
       </div>
       <div class="sim-estantes" id="estantes"></div>
     </section>
 
     <aside class="sim-lado">
       <section class="panel">
-        <h2>Dinero <span class="sutil">(simulado)</span></h2>
+        <h2>Costos <span class="sutil">(simulados)</span></h2>
         <dl class="cuentas" id="dinero"></dl>
       </section>
       <section class="panel sim-eventos">
@@ -121,13 +121,13 @@
 {% if anteriores %}
 <section class="panel">
   <h2>Corridas</h2>
-  <p class="sutil">Con la misma semilla las ventas son las mismas: cambiar la demora de gestión permite comparar faltantes y pedidos. Son escenarios simulados, no ahorros reales de El Roble.</p>
+  <p class="sutil">Con la misma semilla las solicitudes son las mismas: cambiar la demora de gestión permite comparar faltantes y pedidos. Son escenarios simulados, no ahorros reales del sanatorio.</p>
   <div class="tabla-envoltura tabla-envoltura--plana">
     <table class="tabla tabla--compacta">
-      <thead><tr><th>#</th><th>Escenario</th><th class="num">Semilla</th><th class="num">Demora (h)</th><th class="num">Días cerrados</th><th class="num">Ventas</th><th class="num">Pedidos</th><th class="num">Faltantes</th><th>Estado</th></tr></thead>
+      <thead><tr><th>#</th><th>Escenario</th><th class="num">Semilla</th><th class="num">Demora (h)</th><th class="num">Días completos</th><th class="num">Consumo</th><th class="num">Pedidos</th><th class="num">Faltantes</th><th>Estado</th></tr></thead>
       <tbody>
         {% for x in anteriores %}
-        <tr><td>{{ x.id }}</td><td>{{ x.escenario }}</td><td class="num">{{ x.semilla }}</td><td class="num">{{ x.demora | corto }}</td><td class="num">{{ x.dias }}</td><td class="num">{{ x.ventas | dinero }}</td><td class="num">{{ x.pedidos }}</td><td class="num">{{ x.faltantes }}</td><td>{{ "Activa" if x.estado == "activa" else "Terminada" }}</td></tr>
+        <tr><td>{{ x.id }}</td><td>{{ x.escenario }}</td><td class="num">{{ x.semilla }}</td><td class="num">{{ x.demora | corto }}</td><td class="num">{{ x.dias }}</td><td class="num">{{ x.consumido | dinero }}</td><td class="num">{{ x.pedidos }}</td><td class="num">{{ x.faltantes }}</td><td>{{ "Activa" if x.estado == "activa" else "Terminada" }}</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -137,5 +137,5 @@
 {% endblock %}
 
 {% block scripts %}
-{% if corrida %}<script src="/static/simulacion.js?v=2"></script>{% endif %}
+{% if corrida %}<script src="/static/simulacion.js?v=3"></script>{% endif %}
 {% endblock %}

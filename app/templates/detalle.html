@@ -9,10 +9,10 @@
   <div>
     <a class="volver" href="/medicamentos">← Inventario</a>
     <h1>{{ m.nombre }} <span class="sutil-grande">{{ m.presentacion }}</span> <span class="estado estado--{{ e.estado.clave }}">{{ e.estado.etiqueta }}</span>{% if not m.activo %} <span class="estado">Desactivado</span>{% endif %}</h1>
-    <p class="sutil">Se cuenta en {{ u }}{% if proveedor %} · proveedor {{ proveedor.nombre }}{% endif %}{% if m.sku %} · código {{ m.sku }}{% endif %} · precio {{ m.precio_venta | dinero }} · costo {{ m.costo_compra | dinero }}{% if m.origen == "importado" %} · datos importados{% endif %}</p>
+    <p class="sutil">Se cuenta en {{ u }}{% if proveedor %} · proveedor {{ proveedor.nombre }}{% endif %}{% if m.sku %} · código {{ m.sku }}{% endif %} · costo de compra {{ m.costo_compra | dinero }}{% if m.origen == "importado" %} · datos importados{% endif %}</p>
   </div>
   <div class="acciones acciones--arriba">
-    <a class="boton boton--primario" href="/?agregar={{ m.id }}">Vender</a>
+    <a class="boton boton--primario" href="/?agregar={{ m.id }}">Despachar</a>
     <a class="boton" href="/medicamentos/{{ m.id }}/ajuste">Ajustar existencia</a>
     {% if not e.pedido_abierto %}
     <form method="post" action="/medicamentos/{{ m.id }}/pedido" class="en-linea" data-una-vez>
@@ -44,7 +44,7 @@
     {% elif e.estado.dias_para_reorden is not none %}
       Faltan unos <strong>{{ e.estado.dias_para_reorden | num(1) }} días</strong> para llegar al punto de reorden ({{ p.R | num(1) }} {{ u }}).
     {% else %}
-      No hubo ventas en la ventana: no hace falta pedir por ahora.
+      No hubo despachos en la ventana: no hace falta pedir por ahora.
     {% endif %}
   </p>
 
@@ -105,15 +105,15 @@
 </section>
 
 <section class="panel">
-  <h2>Ventas por día completo</h2>
+  <h2>Consumo por día completo (despachos)</h2>
   <p class="sutil consumo__explicacion">
     {{ c.descripcion }}.
-    {% if c.base == "diaria" %}μ<sub>D</sub> = <strong>{{ c.mu_d | num }}</strong> y σ<sub>D</sub> = <strong>{{ c.sigma_d | num }}</strong> (desviación muestral). Los días observados sin ventas cuentan como 0.{% endif %}
+    {% if c.base == "diaria" %}μ<sub>D</sub> = <strong>{{ c.mu_d | num }}</strong> y σ<sub>D</sub> = <strong>{{ c.sigma_d | num }}</strong> (desviación muestral). Los días observados sin despachos cuentan como 0.{% endif %}
     Hoy van <strong>{{ c.hoy }}</strong> {{ u }}: es un día incompleto y no entra en el promedio.
   </p>
   {% set g = consumo_grafica %}
   <figure class="grafica">
-    <svg viewBox="0 0 {{ g.ancho }} {{ g.alto }}" preserveAspectRatio="none" role="img" aria-label="Ventas por día">
+    <svg viewBox="0 0 {{ g.ancho }} {{ g.alto }}" preserveAspectRatio="none" role="img" aria-label="Consumo por día">
       {% if g.con_media %}<rect class="grafica__banda" x="0" y="{{ g.y_arriba }}" width="{{ g.ancho }}" height="{{ (g.y_abajo - g.y_arriba) | round(2) }}"></rect>{% endif %}
       {% for b in g.barras %}
       <rect class="grafica__barra{% if b.hoy %} grafica__barra--hoy{% endif %}" x="{{ b.x }}" y="{{ b.y }}" width="{{ b.ancho }}" height="{{ b.alto }}"><title>{{ b.etiqueta }} {{ u }}</title></rect>
@@ -121,7 +121,7 @@
       {% if g.con_media %}<line class="grafica__media" x1="0" x2="{{ g.ancho }}" y1="{{ g.y_mu }}" y2="{{ g.y_mu }}"></line>{% endif %}
     </svg>
     <figcaption class="grafica__leyenda">
-      <span><i class="grafica__muestra grafica__muestra--barra"></i>Ventas del día</span>
+      <span><i class="grafica__muestra grafica__muestra--barra"></i>Despachado en el día</span>
       <span><i class="grafica__muestra grafica__muestra--hoy"></i>Hoy (incompleto)</span>
       {% if g.con_media %}<span><i class="grafica__muestra grafica__muestra--media"></i>μD</span><span><i class="grafica__muestra grafica__muestra--banda"></i>μD ± σD</span>{% endif %}
     </figcaption>
@@ -149,7 +149,16 @@
         {% if p %}<tr><th>D <span class="sutil">μD × A, demanda anual estimada</span></th><td>{{ p.D | num(1) }}</td></tr>{% endif %}
       </tbody>
     </table>
-    <p class="sutil">S y H no salen de las ventas: S es lo que cuesta gestionar un pedido (aquí, el envío) y H lo que cuesta tener una unidad guardada un año.</p>
+    <p class="sutil">S y H no salen del consumo: S es lo que cuesta gestionar un pedido (aquí, el envío) y H lo que cuesta tener una unidad guardada un año.</p>
+    {% if por_servicio %}
+    <h3 style="margin:14px 0 6px">Consumo por servicio (ventana de días completos)</h3>
+    <table class="datos">
+      <tbody>
+        {% for servicio, total in por_servicio %}<tr><th>{{ servicio }}</th><td>{{ total }} {{ u }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    <p class="sutil">El modelo usa el total del sanatorio; el reparto por servicio solo ayuda a explicar de dónde viene el consumo.</p>
+    {% endif %}
   </section>
 
   <section class="panel">
@@ -164,7 +173,7 @@
     {% if m.unidades_paquete > 1 and e.ajuste_paquete %}<p class="sutil">El redondeo a paquetes agrega {{ e.ajuste_paquete | num(1) }} unidades a la EOQ; la cantidad redondeada ya no es exactamente la óptima.</p>{% endif %}
     <p class="sutil">Supuestos: demanda diaria independiente y aproximadamente normal, plazo constante. No garantiza que nunca falte: es una probabilidad.</p>
     {% elif p %}
-    <p>No hubo ventas en la ventana: D = 0, no se planifican pedidos.</p>
+    <p>No hubo despachos en la ventana: D = 0, no se planifican pedidos.</p>
     {% else %}
     <p>Pendiente: {{ e.pendientes | join("; ") }}.</p>
     {% endif %}

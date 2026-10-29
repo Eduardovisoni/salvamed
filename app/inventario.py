@@ -1,13 +1,13 @@
-"""Reglas de existencias: alta, venta, anulación, ajuste y recepción.
+"""Reglas de existencias: alta, despacho a servicios, anulación, ajuste y recepción.
 
 La existencia solo cambia con un movimiento. Nunca se edita directo ni se borra
-historia: una venta equivocada se anula con un movimiento de anulación y un
+historia: un despacho equivocado se anula con un movimiento de anulación y un
 conteo físico se registra como ajuste con su motivo. Operación y simulación
 usan exactamente estas funciones; la diferencia es `corrida_id`.
 
-Costo de las unidades vendidas: costo promedio ponderado. Cada recepción
-recalcula el promedio con su costo; cada venta guarda el costo vigente en ese
-momento, así que editar el catálogo después no cambia ventas pasadas.
+Costo de lo consumido: costo promedio ponderado. Cada recepción recalcula el
+promedio con su costo; cada despacho guarda el costo vigente en ese momento, así
+que editar el catálogo después no cambia despachos pasados.
 """
 
 from dataclasses import dataclass
@@ -25,13 +25,13 @@ from app.db import (
     RECEPCION,
     RECIBIDO,
     REALIZADO,
-    VENTA,
+    DESPACHO,
+    Despacho,
+    DespachoLinea,
     Medicamento,
     Movimiento,
     Pedido,
     PedidoLinea,
-    Venta,
-    VentaLinea,
     en_ambito,
 )
 from app.planificacion import configuracion, manana
@@ -44,7 +44,7 @@ class ErrorDeOperacion(Exception):
 
 
 def observado_desde(db: Session, momento: datetime):
-    """Si el alta es antes de abrir, ese día ya cuenta; si no, desde mañana."""
+    """Un día cuenta desde que empieza: si el alta es a media jornada, se cuenta desde mañana."""
     cfg = configuracion(db)
     local = hora_local(momento)
     if local.time() <= time(cfg.hora_apertura):
@@ -109,92 +109,91 @@ class LineaPedida:
     cantidad: int
 
 
-def vender(
-    db: Session, lineas: list[LineaPedida], token: str, momento: datetime, corrida_id=None, usuario=""
-) -> Venta:
-    """Confirma una venta completa o ninguna. El token evita cobrar dos veces el mismo carrito."""
+def despachar(
+    db: Session, servicio: str, lineas: list[LineaPedida], token: str, momento: datetime, corrida_id=None, usuario="", nota=""
+) -> Despacho:
+    """Confirma un despacho completo o ninguno. El token evita descontar dos veces la misma lista."""
     if not token or len(token) > 64:
-        raise ErrorDeOperacion("Falta el identificador de la venta. Vuelve a cargar la página.")
-    previa = db.scalar(select(Venta).where(Venta.token == token))
-    if previa is not None:
-        return previa
+        raise ErrorDeOperacion("Falta el identificador del despacho. Vuelve a cargar la página.")
+    previo = db.scalar(select(Despacho).where(Despacho.token == token))
+    if previo is not None:
+        return previo
+    servicio = (servicio or "").strip()
+    if not servicio:
+        raise ErrorDeOperacion("Elige el servicio que recibe los medicamentos.")
     juntas: dict[int, int] = {}
     for linea in lineas:
         if linea.cantidad < 1 or linea.cantidad > CANTIDAD_MAXIMA:
             raise ErrorDeOperacion("Cada cantidad debe ser un entero entre 1 y 100,000.")
         juntas[linea.medicamento_id] = juntas.get(linea.medicamento_id, 0) + linea.cantidad
     if not juntas:
-        raise ErrorDeOperacion("El carrito está vacío.")
+        raise ErrorDeOperacion("La lista de despacho está vacía.")
 
-    venta = Venta(corrida_id=corrida_id, token=token, fecha=momento)
-    db.add(venta)
+    despacho = Despacho(corrida_id=corrida_id, token=token, servicio=servicio[:60], fecha=momento, nota=nota[:200])
+    db.add(despacho)
     try:
         db.flush()
-        total = costo = 0.0
+        costo = 0.0
         for medicamento_id, cantidad in juntas.items():
             m = db.get(Medicamento, medicamento_id)
             if m is None or m.corrida_id != corrida_id or not m.activo:
                 raise ErrorDeOperacion("Uno de los medicamentos ya no está disponible.")
-            if not m.precio_venta:
-                raise ErrorDeOperacion(f"{m.nombre_completo} no tiene precio de venta.")
             costo_unitario = m.costo_promedio if m.costo_promedio is not None else m.costo_compra
-            subtotal = round(m.precio_venta * cantidad, 2)
+            subtotal = round((costo_unitario or 0) * cantidad, 2)
             db.add(
-                VentaLinea(
-                    venta_id=venta.id,
+                DespachoLinea(
+                    despacho_id=despacho.id,
                     medicamento_id=m.id,
                     cantidad=cantidad,
-                    precio_unitario=m.precio_venta,
                     costo_unitario=costo_unitario,
-                    subtotal=subtotal,
+                    costo=subtotal,
                 )
             )
             _mover(
-                db, m, VENTA, -cantidad, momento,
-                venta_id=venta.id, precio_unitario=m.precio_venta, costo_unitario=costo_unitario, usuario=usuario,
+                db, m, DESPACHO, -cantidad, momento,
+                despacho_id=despacho.id, costo_unitario=costo_unitario, nota=servicio[:200], usuario=usuario,
             )
-            total += subtotal
-            costo += (costo_unitario or 0) * cantidad
-        venta.total = round(total, 2)
-        venta.costo_total = round(costo, 2)
+            costo += subtotal
+        despacho.costo_total = round(costo, 2)
         db.commit()
     except ErrorDeOperacion:
         db.rollback()
         raise
     except IntegrityError:
         db.rollback()
-        previa = db.scalar(select(Venta).where(Venta.token == token))
-        if previa is None:
+        previo = db.scalar(select(Despacho).where(Despacho.token == token))
+        if previo is None:
             raise
-        return previa
-    return venta
+        return previo
+    return despacho
 
 
-def lineas_de(db: Session, venta: Venta) -> list[tuple[VentaLinea, Medicamento]]:
+def lineas_de(db: Session, despacho: Despacho) -> list[tuple[DespachoLinea, Medicamento]]:
     return list(
         db.execute(
-            select(VentaLinea, Medicamento)
-            .join(Medicamento, Medicamento.id == VentaLinea.medicamento_id)
-            .where(VentaLinea.venta_id == venta.id)
-            .order_by(VentaLinea.id)
+            select(DespachoLinea, Medicamento)
+            .join(Medicamento, Medicamento.id == DespachoLinea.medicamento_id)
+            .where(DespachoLinea.despacho_id == despacho.id)
+            .order_by(DespachoLinea.id)
         ).tuples()
     )
 
 
-def anular_venta(db: Session, venta: Venta, motivo: str, momento: datetime, usuario="") -> None:
-    if venta.estado != "confirmada":
-        raise ErrorDeOperacion("Esa venta ya estaba anulada.")
+def anular_despacho(db: Session, despacho: Despacho, motivo: str, momento: datetime, usuario="") -> None:
+    """Las unidades regresan a la farmacia con un movimiento de anulación; el despacho queda marcado."""
+    if despacho.estado != "confirmado":
+        raise ErrorDeOperacion("Ese despacho ya estaba anulado.")
     motivo = motivo.strip()
     if not motivo:
         raise ErrorDeOperacion("Escribe el motivo de la anulación.")
-    for linea, m in lineas_de(db, venta):
+    for linea, m in lineas_de(db, despacho):
         _mover(
             db, m, ANULACION, linea.cantidad, momento,
-            venta_id=venta.id, costo_unitario=linea.costo_unitario, nota=f"Anulación: {motivo}"[:200], usuario=usuario,
+            despacho_id=despacho.id, costo_unitario=linea.costo_unitario, nota=f"Anulación: {motivo}"[:200], usuario=usuario,
         )
-    venta.estado = "anulada"
-    venta.anulada_en = momento
-    venta.motivo_anulacion = motivo[:200]
+    despacho.estado = "anulado"
+    despacho.anulado_en = momento
+    despacho.motivo_anulacion = motivo[:200]
     db.commit()
 
 

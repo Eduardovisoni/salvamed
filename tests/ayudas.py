@@ -19,7 +19,6 @@ def medicamento(db, nombre="Ceftriaxona", existencia=100, diarios=(5, 7) * 15, p
         "presentacion": "1 g",
         "unidad": "vial",
         "costo_compra": 10.0,
-        "precio_venta": 15.0,
         "unidades_paquete": 10,
         "proveedor_id": proveedor_id,
     }

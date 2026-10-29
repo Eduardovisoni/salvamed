@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from app import despacho, rutas_config, rutas_operacion, rutas_simulacion, seguridad
+from app import rutas_config, rutas_operacion, rutas_simulacion, seguridad, tareas
 from app.db import preparar_base
 from app.web import CARPETA
 
@@ -11,9 +11,9 @@ from app.web import CARPETA
 @asynccontextmanager
 async def ciclo_de_vida(_app: FastAPI):
     preparar_base()
-    tareas = despacho.arrancar()
+    en_marcha = tareas.arrancar()
     yield
-    for tarea in tareas:
+    for tarea in en_marcha:
         tarea.cancel()
 
 

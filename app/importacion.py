@@ -1,4 +1,4 @@
-"""Importar catálogo, apertura, historia de ventas y configuración desde .xlsx, .csv o .tsv.
+"""Importar catálogo, apertura, historia de consumo y configuración desde .xlsx, .csv o .tsv.
 
 Flujo: subir → vista previa (mapeo de columnas, errores y procedencia) →
 confirmar. Nada se guarda hasta confirmar.
@@ -9,11 +9,11 @@ Reglas para no duplicar ni cambiar existencias en silencio:
   existencia NO cambia; la diferencia se informa. Solo si se marca la opción,
   se registra como ajuste con motivo.
 - La existencia de un medicamento nuevo entra como movimiento de apertura.
-- La historia de ventas no mueve existencias: solo alimenta μD y σD. Un día ya
+- La historia de consumo no mueve existencias: solo alimenta μD y σD. Un día ya
   importado no se vuelve a importar, y no se importan días en que el sistema ya
-  registra ventas (se contaría dos veces).
+  registra despachos (se contaría dos veces).
 - Los totales semanales (sem_1 … sem_n) se guardan como semanas; no se
-  convierten en ventas diarias observadas. Se supone sem_1 la más antigua.
+  convierten en consumos diarios observados. Se supone sem_1 la más antigua.
 - Las columnas que el archivo ya trae calculadas (punto de reorden, stock de
   seguridad, pedido sugerido, …) no se importan: SALVAMED las recalcula.
 """
@@ -41,7 +41,6 @@ CAMPOS_CATALOGO = {
     "clasificacion": ("Clasificación", ("clasificacion", "categoria")),
     "proveedor": ("Proveedor", ("proveedor", "proveedor_id")),
     "costo_compra": ("Costo de compra (Q)", ("costo_compra", "costo_compra_q", "costo_unitario_q")),
-    "precio_venta": ("Precio de venta (Q)", ("precio_venta", "precio_venta_q")),
     "unidades_paquete": ("Unidades por paquete", ("unidades_paquete", "paquete")),
     "existencia": ("Existencia de apertura", ("existencia", "stock_actual", "existencia_inicial")),
     "tiempo_entrega": ("Plazo de entrega L (días)", ("tiempo_entrega", "tiempo_entrega_dias", "plazo")),
@@ -52,14 +51,14 @@ CAMPOS_HISTORIAL = {
     "medicamento": ("Medicamento", ("medicamento", "nombre")),
     "presentacion": ("Presentación", ("presentacion",)),
     "sku": ("Código interno", ("sku", "codigo", "id_medicamento")),
-    "cantidad": ("Cantidad vendida", ("cantidad", "cantidad_vendida", "ventas", "unidades")),
+    "cantidad": ("Cantidad despachada", ("cantidad", "cantidad_despachada", "consumo", "despachos", "salidas", "unidades")),
 }
 CALCULADAS = {
     "consumo_semanal_promedio", "consumo_mensual_estimado", "stock_seguridad", "punto_reorden",
     "cobertura_dias", "revision_dias", "pedido_sugerido", "valor_inventario_q", "presupuesto_pedido_q",
     "estado", "dias_hasta_punto_reorden",
 }
-AMBIGUAS = {"precio_unitario_q": "No dice si es costo de compra o precio de venta: elige a qué corresponde."}
+AMBIGUAS = {"precio_unitario_q": "No dice si es costo de compra: elige si corresponde."}
 CONFIG = {
     "dias_operacion_anio": ("dias_operacion_anio", "a", "dias_operacion", "dias_habiles"),
     "nivel_servicio": ("nivel_servicio", "probabilidad_servicio", "p"),
@@ -142,7 +141,7 @@ def _hoja(nombre: str, filas: list[list[str]]) -> Hoja:
     nombre_clave = clave(nombre)
     if "configuracion" in nombre_clave or {"parametro", "valor"} <= set(claves):
         hoja.tipo = "configuracion"
-    elif "fecha" in claves and any(c in claves for c in ("cantidad", "cantidad_vendida", "ventas", "unidades")):
+    elif "fecha" in claves and any(c in claves for c in ("cantidad", "cantidad_despachada", "consumo", "despachos", "salidas", "unidades")):
         hoja.tipo = "historial"
     elif any(c in claves for c in ("medicamento", "nombre", "producto")):
         hoja.tipo = "catalogo"
@@ -202,8 +201,7 @@ def _existente(db: Session, nombre: str, presentacion: str, sku: str = "") -> Me
 
 @dataclass
 class Opciones:
-    columna_ambigua: dict = field(default_factory=dict)  # columna → costo_compra | precio_venta | ignorar
-    margen_simulado: float | None = None  # genera precio = costo × (1 + margen) si falta
+    columna_ambigua: dict = field(default_factory=dict)  # columna → costo_compra | ignorar
     ajustar_existencias: bool = False
     aplicar_configuracion: bool = True
     importar_semanas: bool = True
@@ -225,7 +223,7 @@ def analizar(db: Session, hojas: list[Hoja], opciones: Opciones, archivo: str) -
 def _analizar_catalogo(db, hoja: Hoja, opciones: Opciones, archivo: str, resultado: dict) -> None:
     mapeo = dict(hoja.mapeo)
     for columna, destino in opciones.columna_ambigua.items():
-        if columna in hoja.encabezados and destino in ("costo_compra", "precio_venta"):
+        if columna in hoja.encabezados and destino == "costo_compra":
             mapeo[destino] = columna
     sin_uso = [e for e in hoja.encabezados if e not in mapeo.values() and e not in semanas_de(hoja)]
     for e in sin_uso:
@@ -242,7 +240,7 @@ def _analizar_catalogo(db, hoja: Hoja, opciones: Opciones, archivo: str, resulta
             try:
                 if destino in ("unidades_paquete", "existencia"):
                     datos[destino] = _num(crudo, entero=True)
-                elif destino in ("costo_compra", "precio_venta", "tiempo_entrega"):
+                elif destino in ("costo_compra", "tiempo_entrega"):
                     datos[destino] = _num(crudo)
                 elif destino == "vencimiento_proximo":
                     datos[destino] = _fecha(crudo)
@@ -254,15 +252,11 @@ def _analizar_catalogo(db, hoja: Hoja, opciones: Opciones, archivo: str, resulta
             errores.append("Falta el nombre")
         if not datos.get("unidad"):
             errores.append("Falta la unidad")
-        for campo in ("costo_compra", "precio_venta", "tiempo_entrega"):
+        for campo in ("costo_compra", "tiempo_entrega"):
             if datos.get(campo) is not None and datos[campo] <= 0:
                 errores.append(f"{CAMPOS_CATALOGO[campo][0]} debe ser mayor que 0")
         if datos.get("existencia") is not None and datos["existencia"] < 0:
             errores.append("La existencia no puede ser negativa")
-        generado_precio = False
-        if datos.get("precio_venta") is None and datos.get("costo_compra") and opciones.margen_simulado is not None:
-            datos["precio_venta"] = round(datos["costo_compra"] * (1 + opciones.margen_simulado), 2)
-            generado_precio = True
         llave = (clave(datos.get("nombre")), clave(datos.get("presentacion")))
         if llave in vistos:
             errores.append("Fila repetida en el archivo (mismo nombre y presentación)")
@@ -302,7 +296,6 @@ def _analizar_catalogo(db, hoja: Hoja, opciones: Opciones, archivo: str, resulta
                 "aviso": aviso,
                 "datos": {k: (v.isoformat() if isinstance(v, date) else v) for k, v in datos.items()},
                 "semanas": semanales,
-                "precio_generado": generado_precio,
                 "existente_id": existente.id if existente else None,
             }
         )

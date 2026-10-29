@@ -24,13 +24,8 @@
         <label for="precio_unitario_q">Si el archivo trae <code>precio_unitario_q</code>, ¿qué es?</label>
         <select class="campo__entrada" id="precio_unitario_q" name="precio_unitario_q">
           <option value="ignorar">No lo sé: no importarlo</option>
-          <option value="costo_compra">Costo de compra (lo que paga la farmacia)</option>
-          <option value="precio_venta">Precio de venta (lo que paga el cliente)</option>
+          <option value="costo_compra">Costo de compra (lo que paga el sanatorio al proveedor)</option>
         </select>
-      </div>
-      <div class="campo">
-        <label for="margen_simulado">Generar precio de venta simulado si falta: costo × (1 + margen %) <span class="sutil">(opcional)</span></label>
-        <input class="campo__entrada" id="margen_simulado" name="margen_simulado" type="number" min="0" step="any" placeholder="Ej. 35">
       </div>
       <input type="hidden" name="importar_semanas" value="0"><label class="casilla"><input type="checkbox" name="importar_semanas" value="1" checked> Importar totales semanales (sem_1 … sem_n) como historia semanal</label>
       <label class="casilla"><input type="checkbox" name="ajustar_existencias" value="1"> Si un medicamento ya existe y la existencia difiere, registrar un ajuste</label>
@@ -43,12 +38,12 @@
     <h2>Plantillas</h2>
     <ul class="politica">
       <li><a href="/plantillas/plantilla_salvamed.xlsx">Plantilla vacía (.xlsx)</a>: catálogo, historial diario y configuración, con instrucciones.</li>
-      <li><a href="/plantillas/ejemplo_simulado.xlsx">Ejemplo simulado (.xlsx)</a>: 8 medicamentos con 45 días de ventas generadas (semilla 2026). Todo es simulado.</li>
+      <li><a href="/plantillas/ejemplo_simulado.xlsx">Ejemplo simulado (.xlsx)</a>: 8 medicamentos con 45 días de consumo generado (semilla 2026). Todo es simulado.</li>
       <li>El CSV del grupo (<code>SALVAMED en orden.csv</code>) también se puede subir tal cual: es texto separado por tabulaciones en cp1252.</li>
     </ul>
     <p class="sutil">
-      Qué distingue cada parte: <strong>catálogo</strong> (nombre, presentación, unidad, proveedor, costo, precio, paquete),
-      <strong>apertura</strong> (la existencia de un medicamento nuevo), <strong>historial</strong> (ventas por día: no mueve existencias)
+      Qué distingue cada parte: <strong>catálogo</strong> (nombre, presentación, unidad, proveedor, costo, paquete),
+      <strong>apertura</strong> (la existencia de un medicamento nuevo), <strong>historial</strong> (unidades despachadas por día: no mueve existencias)
       y <strong>configuración</strong> (A, p, tasa de mantenimiento, S, L).
     </p>
   </section>

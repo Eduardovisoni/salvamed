@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block titulo %}SALVAMED{% endblock %}</title>
   <link rel="icon" href="/static/icono.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/static/estilos.css?v=2">
+  <link rel="stylesheet" href="/static/estilos.css?v=4">
   {% block cabeza %}{% endblock %}
 </head>
 <body class="{% block clase_cuerpo %}{% endblock %}">
@@ -16,15 +16,15 @@
         <img src="/static/icono.svg" alt="" width="36" height="36">
         <span>
           <strong>SALVAMED</strong>
-          <small>Farmacia · Centro Médico El Roble</small>
+          <small>Farmacia interna · Sanatorio El Roble, Jutiapa</small>
         </span>
       </a>
       {% if pestana is defined %}
       <nav class="pestanas" aria-label="Secciones">
-        <a href="/" {% if pestana == "venta" %}aria-current="page"{% endif %}>Venta</a>
+        <a href="/" {% if pestana == "despacho" %}aria-current="page"{% endif %}>Despacho</a>
         <a href="/medicamentos" {% if pestana in ("inventario", "nuevo", "editar") %}aria-current="page"{% endif %}>Inventario</a>
         <a href="/pedidos" {% if pestana == "pedidos" %}aria-current="page"{% endif %}>Pedidos</a>
-        <a href="/ventas" {% if pestana == "ventas" %}aria-current="page"{% endif %}>Dinero</a>
+        <a href="/costos" {% if pestana == "costos" %}aria-current="page"{% endif %}>Costos</a>
         <a class="pestanas__sim" href="/simulacion" {% if pestana == "simulacion" %}aria-current="page"{% endif %}>Simulación</a>
         <a href="/configuracion" {% if pestana == "configuracion" %}aria-current="page"{% endif %}>Configuración</a>
         {% if a.clave %}

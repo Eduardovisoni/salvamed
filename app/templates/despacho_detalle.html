@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block titulo %}Despacho #{{ despacho.id }} · SALVAMED{% endblock %}
+{% block contenido %}
+<div class="titulo-pagina">
+  <div>
+    <a class="volver" href="/costos">← Costos</a>
+    <h1>Despacho #{{ despacho.id }}
+      {% if despacho.estado == "anulado" %}<span class="estado estado--pedir">Anulado</span>{% else %}<span class="estado estado--bien">Confirmado</span>{% endif %}
+    </h1>
+    <p class="sutil">{{ despacho.fecha | fecha }} · a <strong>{{ despacho.servicio }}</strong>{% if despacho.nota %} · {{ despacho.nota }}{% endif %}</p>
+  </div>
+</div>
+
+{% if error %}<div class="aviso aviso--error" role="alert">{{ error }}</div>{% endif %}
+
+<section class="panel">
+  <div class="tabla-envoltura tabla-envoltura--plana">
+    <table class="tabla tabla--compacta">
+      <thead><tr><th>Medicamento</th><th class="num">Cantidad</th><th class="num">Costo unitario</th><th class="num">Costo</th></tr></thead>
+      <tbody>
+        {% for linea, m in lineas %}
+        <tr>
+          <td><a class="enlace-fila" href="/medicamentos/{{ m.id }}">{{ m.nombre_completo }}</a></td>
+          <td class="num">{{ linea.cantidad }} {{ m.unidad | unidad(linea.cantidad) }}</td>
+          <td class="num">{{ linea.costo_unitario | dinero }}</td>
+          <td class="num">{{ linea.costo | dinero }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="carrito__total"><span>Costo de lo despachado</span><strong>{{ despacho.costo_total | dinero }}</strong></div>
+</section>
+
+{% if despacho.estado == "confirmado" %}
+<form class="panel" method="post" action="/despachos/{{ despacho.id }}/anular" data-confirmar="¿Anular el despacho #{{ despacho.id }}? Las unidades regresan a la farmacia." data-una-vez>
+  <h2>Anular despacho</h2>
+  <p class="sutil">El despacho no se borra: se registra un movimiento de anulación que devuelve las unidades y deja la explicación.</p>
+  <div class="campo">
+    <label for="motivo">Motivo</label>
+    <input class="campo__entrada" id="motivo" name="motivo" maxlength="200" required placeholder="Ej. Se registró en el servicio equivocado">
+  </div>
+  <div class="acciones" style="margin-top:12px"><button class="boton boton--peligro" type="submit">Anular despacho</button></div>
+</form>
+{% else %}
+<div class="aviso aviso--error">Anulado el {{ despacho.anulado_en | fecha }}. Motivo: {{ despacho.motivo_anulacion }}</div>
+{% endif %}
+{% endblock %}

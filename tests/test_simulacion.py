@@ -1,7 +1,7 @@
 from sqlalchemy import func, select
 
 from app import dinero, pedidos, simulacion
-from app.db import EventoSim, Medicamento, Movimiento, Pedido, Venta
+from app.db import Despacho, EventoSim, Medicamento, Movimiento, Pedido
 from tests.ayudas import medicamento
 
 
@@ -27,7 +27,7 @@ def _recorrer(db, c, dias, pasos=1):
 
 
 def _huella(db, c):
-    total = db.scalar(select(func.coalesce(func.sum(Venta.total), 0)).where(Venta.corrida_id == c.id))
+    total = db.scalar(select(func.coalesce(func.sum(Despacho.costo_total), 0)).where(Despacho.corrida_id == c.id))
     existencias = [m.existencia for m in db.scalars(select(Medicamento).where(Medicamento.corrida_id == c.id).order_by(Medicamento.id))]
     return round(total, 2), existencias, c.faltantes
 
@@ -56,7 +56,7 @@ def test_pausa_confirmacion_reanudacion_y_recepcion_tras_l(db):
     minuto_aviso = c.minuto
     assert not simulacion.corriendo(c)
     simulacion.avanzar(db, c, c.minuto + 500)
-    assert c.minuto == minuto_aviso  # en pausa no se vende
+    assert c.minuto == minuto_aviso  # en pausa no se despacha
     ok, _ = simulacion.confirmar_pedido(db, pedido, "Expositor")
     assert ok and simulacion.corriendo(c)
     otra_vez, _ = simulacion.confirmar_pedido(db, pedido, "Expositor")
@@ -82,8 +82,8 @@ def test_la_simulacion_no_toca_la_operacion(db):
     _recorrer(db, c, 6)
     db.refresh(real)
     assert real.existencia == 50
-    assert dinero.resumen(db).ventas == 0
-    assert dinero.resumen(db, c.id).ventas > 0
+    assert dinero.resumen(db).consumido == 0
+    assert dinero.resumen(db, c.id).consumido > 0
     assert db.scalar(select(func.count()).select_from(Pedido).where(Pedido.corrida_id.is_(None))) == 0
 
 
@@ -106,16 +106,25 @@ def test_varios_avisos_hacen_cola(db):
     assert c.causas == [999999] and not simulacion.corriendo(c)
 
 
-def test_escenario_de_aumento_genera_mas_ventas_del_producto(db):
+def test_escenario_de_aumento_pide_mas_salbutamol(db):
     escenario = simulacion.ESCENARIOS["aumento"]
     indice = [p.nombre for p in escenario.productos].index("Salbutamol")
 
     def unidades(e, dia):
-        return sum(n for cl in simulacion.clientes_del_dia(e, 2026, dia, 720, dia % 7) for j, n in cl.compras if j == indice)
+        return sum(n for sol in simulacion.solicitudes_del_dia(e, 2026, dia, 1440, dia % 7) for j, n in sol.compras if j == indice)
 
-    antes = sum(unidades(escenario, d) for d in range(9, 16))
-    base = sum(unidades(simulacion.ESCENARIOS["base"], d) for d in range(9, 16))
-    assert antes > base * 1.5
+    despues = sum(unidades(escenario, d) for d in range(14, 21))
+    base = sum(unidades(simulacion.ESCENARIOS["base"], d) for d in range(14, 21))
+    assert despues > base * 1.5
+    assert unidades(escenario, 5) == unidades(simulacion.ESCENARIOS["base"], 5)
+
+
+def test_cada_servicio_pide_en_su_horario(db):
+    escenario = simulacion.ESCENARIOS["base"]
+    solicitudes = [s for d in range(7) for s in simulacion.solicitudes_del_dia(escenario, 2026, d, 1440, d)]
+    cirugias = [s.minuto / 60 for s in solicitudes if s.servicio == "Sala de operaciones"]
+    assert cirugias and all(7 <= h < 17 for h in cirugias)
+    assert {s.servicio for s in solicitudes} == {x.nombre for x in escenario.servicios}
 
 
 def test_pantalla_y_api(cliente):
@@ -123,6 +132,7 @@ def test_pantalla_y_api(cliente):
     assert cliente.post("/simulacion/nueva", data={"escenario": "base", "semilla": "5"}, follow_redirects=False).status_code == 303
     estado = cliente.get("/simulacion/estado").json()
     assert estado["corrida"]["semilla"] == 5 and len(estado["tarjetas"]) == 8
+    assert [s["nombre"] for s in estado["servicios"]][:2] == ["Emergencia", "Encamamiento"]
     r = cliente.post("/simulacion/control", data={"accion": "dia"}).json()
     assert r["reloj"]["dia"] == 2
     assert any(e["tipo"] == "cierre" for e in r["eventos"])
@@ -132,4 +142,4 @@ def test_los_eventos_quedan_guardados(db):
     c = simulacion.crear_corrida(db, "base")
     simulacion.controlar(db, c, "dia")
     tipos = {e.tipo for e in db.scalars(select(EventoSim).where(EventoSim.corrida_id == c.id))}
-    assert {"inicio", "venta", "cierre"} <= tipos
+    assert {"inicio", "despacho", "cierre"} <= tipos

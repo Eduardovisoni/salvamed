@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import despacho, pedidos, simulacion
+from app import pedidos, simulacion, tareas
 from app.db import Mensaje, Pedido, sesion
 from app.web import pagina
 
@@ -35,25 +35,25 @@ def _activa(db: Session):
     return corrida
 
 
-def _enviar_si_hace_falta(db: Session, corrida, tareas: BackgroundTasks) -> None:
+def _enviar_si_hace_falta(db: Session, corrida, tareas_fondo: BackgroundTasks) -> None:
     if db.scalar(select(Mensaje.id).where(Mensaje.corrida_id == corrida.id, Mensaje.estado == "pendiente")):
-        tareas.add_task(despacho.enviar_ahora)
+        tareas_fondo.add_task(tareas.enviar_ahora)
 
 
 @rutas.get("/simulacion/estado")
-def estado(tareas: BackgroundTasks, desde: int = 0, med: int | None = None, db: Session = Depends(sesion)):
+def estado(tareas_fondo: BackgroundTasks, desde: int = 0, med: int | None = None, db: Session = Depends(sesion)):
     corrida = _activa(db)
     simulacion.paso(db, corrida)
-    _enviar_si_hace_falta(db, corrida, tareas)
+    _enviar_si_hace_falta(db, corrida, tareas_fondo)
     return JSONResponse(simulacion.estado(db, corrida, desde, med))
 
 
 @rutas.post("/simulacion/control")
-async def control(request: Request, tareas: BackgroundTasks, db: Session = Depends(sesion)):
+async def control(request: Request, tareas_fondo: BackgroundTasks, db: Session = Depends(sesion)):
     corrida = _activa(db)
     formulario = await request.form()
     simulacion.controlar(db, corrida, str(formulario.get("accion", "")), str(formulario.get("valor", "")))
-    _enviar_si_hace_falta(db, corrida, tareas)
+    _enviar_si_hace_falta(db, corrida, tareas_fondo)
     desde = formulario.get("desde", "0")
     med = formulario.get("med", "")
     return JSONResponse(
@@ -79,7 +79,7 @@ async def nueva(request: Request, db: Session = Depends(sesion)):
 
 
 @rutas.post("/simulacion/confirmar/{pedido_id}")
-def confirmar(pedido_id: int, tareas: BackgroundTasks, db: Session = Depends(sesion)):
+def confirmar(pedido_id: int, db: Session = Depends(sesion)):
     """Respuesta del encargado desde la web, para cuando no hay Telegram real."""
     pedido = db.get(Pedido, pedido_id)
     if pedido is None or pedido.corrida_id is None:

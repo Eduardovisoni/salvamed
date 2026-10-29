@@ -31,13 +31,13 @@ def test_vista_previa_no_guarda_nada_y_explica_las_columnas(db):
 
 
 def test_aplicar_y_reimportar_no_duplica_ni_cambia_existencias(db):
-    opciones = importacion.Opciones(columna_ambigua={"precio_unitario_q": "costo_compra"}, margen_simulado=0.35)
+    opciones = importacion.Opciones(columna_ambigua={"precio_unitario_q": "costo_compra"})
     importacion.aplicar(db, importacion.preparar(db, "x.csv", CSV, opciones))
     assert _contar(db, Medicamento) == 30
     assert _contar(db, Movimiento, Movimiento.tipo == "apertura") == 30
     assert _contar(db, ConsumoHistorico, ConsumoHistorico.periodo == "semana") == 240
     paracetamol = db.scalar(select(Medicamento).where(Medicamento.nombre == "Paracetamol"))
-    assert paracetamol.unidad == "frasco IV" and paracetamol.costo_compra == 18 and paracetamol.precio_venta == 24.3
+    assert paracetamol.unidad == "frasco IV" and paracetamol.costo_compra == 18
     e = evaluar(db, paracetamol, ahora())
     assert e.consumo.base == "semanal" and e.plan is not None
 

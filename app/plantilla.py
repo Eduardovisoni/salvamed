@@ -3,7 +3,7 @@
     python -m app.plantilla        escribe datos/plantilla_salvamed.xlsx y datos/ejemplo_simulado.xlsx
 
 El ejemplo usa la semilla 2026: con la misma fecha de generación produce los
-mismos números. Sus 45 días de ventas terminan ayer, para que entren en la
+mismos números. Sus 45 días de consumo terminan ayer, para que entren en la
 ventana de 30 días completos. Todo el contenido del ejemplo es simulado.
 """
 
@@ -28,11 +28,11 @@ FONDO_TITULO = PatternFill("solid", fgColor="0F766E")
 
 CATALOGO = (
     "nombre", "presentacion", "unidad", "sku", "clasificacion", "proveedor",
-    "costo_compra_q", "precio_venta_q", "unidades_paquete", "existencia", "tiempo_entrega_dias", "vencimiento_proximo",
+    "costo_compra_q", "unidades_paquete", "existencia", "tiempo_entrega_dias", "vencimiento_proximo",
 )
 HISTORIAL = ("fecha", "medicamento", "presentacion", "cantidad")
 CONFIGURACION = (
-    ("dias_operacion_anio", 365, "Supuesto de demostración: la farmacia abre todos los días. Cámbialo si no es así."),
+    ("dias_operacion_anio", 365, "El sanatorio opera 24 horas todos los días (TuSalud y Facebook)."),
     ("nivel_servicio", 95, "Probabilidad de no agotarse durante el plazo de entrega (%)."),
     ("tasa_mantenimiento", 25, "Supuesto académico (% anual): H = costo de compra × tasa. No es un dato medido."),
     ("costo_pedido", 35, "S en quetzales. Escenario base: solo el envío."),
@@ -40,15 +40,15 @@ CONFIGURACION = (
 )
 
 EJEMPLO = (
-    # nombre, presentación, unidad, proveedor, costo, precio, paquete, existencia, L, consumo diario buscado
-    ("Ceftriaxona", "1 g", "vial", "Proveedor A", 12.5, 16.9, 10, 60, 3, 6),
-    ("Paracetamol", "1 g/100 ml", "frasco IV", "Proveedor A", 18.0, 24.3, 12, 150, 3, 15),
-    ("Solución salina", "0.9 % · 100 ml", "bolsa", "Proveedor A", 5.5, 7.45, 20, 300, 3, 22),
-    ("Dexametasona", "4 mg/ml · 2 ml", "ampolla", "Proveedor B", 5.9, 8.0, 10, 90, 3, 8),
-    ("Metoclopramida", "10 mg/2 ml", "ampolla", "Proveedor B", 4.7, 6.35, 10, 100, 3, 7),
-    ("Salbutamol", "2.5 mg/2.5 ml", "monodosis", "Proveedor B", 4.1, 5.55, 20, 120, 3, 10),
-    ("Insulina cristalina", "U-100 · 10 ml", "vial", "Proveedor C", 88.0, 118.8, 1, 14, 4, 1.2),
-    ("Adrenalina (epinefrina)", "1 mg/ml · 1 ml", "ampolla", "Proveedor C", 7.5, 10.15, 10, 20, 3, 1.5),
+    # nombre, presentación, unidad, proveedor, costo, paquete, existencia, L, consumo diario buscado
+    ("Ceftriaxona", "1 g", "vial", "Proveedor A", 12.5, 10, 60, 3, 6),
+    ("Paracetamol", "1 g/100 ml", "frasco IV", "Proveedor A", 18.0, 12, 150, 3, 15),
+    ("Solución salina", "0.9 % · 100 ml", "bolsa", "Proveedor A", 5.5, 20, 300, 3, 22),
+    ("Dexametasona", "4 mg/ml · 2 ml", "ampolla", "Proveedor B", 5.9, 10, 90, 3, 8),
+    ("Metoclopramida", "10 mg/2 ml", "ampolla", "Proveedor B", 4.7, 10, 100, 3, 7),
+    ("Salbutamol", "2.5 mg/2.5 ml", "monodosis", "Proveedor B", 4.1, 20, 120, 3, 10),
+    ("Insulina cristalina", "U-100 · 10 ml", "vial", "Proveedor C", 88.0, 1, 14, 4, 1.2),
+    ("Adrenalina (epinefrina)", "1 mg/ml · 1 ml", "ampolla", "Proveedor C", 7.5, 10, 20, 3, 1.5),
 )
 
 
@@ -70,19 +70,19 @@ def _leeme(libro: Workbook, ejemplo: bool) -> None:
         "",
         "Hojas:",
         "  Catálogo: un medicamento por fila. Solo nombre y unidad son obligatorios. La existencia de un medicamento nuevo entra como apertura.",
-        "  Historial diario: ventas de días completos (una fila por día y medicamento). No mueve existencias: solo alimenta μD y σD.",
+        "  Historial diario: unidades despachadas a los servicios en días completos (una fila por día y medicamento). No mueve existencias: solo alimenta μD y σD.",
         "  Configuración: parámetros generales (A, p, tasa de mantenimiento, S, L).",
         "",
         "Colores: verde = dato que se introduce; amarillo = supuesto de demostración que conviene revisar.",
         "SALVAMED calcula lo demás (μD, σD, D, EOQ, R, IS, N, T, CT, H_IS). No escribas resultados en la plantilla.",
-        "Un día observado sin ventas se escribe con cantidad 0; un día sin registro simplemente no se escribe.",
+        "Un día observado sin despachos se escribe con cantidad 0; un día sin registro simplemente no se escribe.",
         "Al importar verás una vista previa con errores y procedencia antes de confirmar. Reimportar no duplica ni cambia existencias.",
     ]
     if ejemplo:
         lineas += [
             "",
-            f"TODO ES SIMULADO: catálogo, costos, precios y existencias inventados; {DIAS_DE_HISTORIA} días de ventas GENERADOS con la semilla {SEMILLA}.",
-            "Solo los nombres de los medicamentos están contextualizados en El Roble. No son datos entregados por El Roble.",
+            f"TODO ES SIMULADO: catálogo, costos y existencias inventados; {DIAS_DE_HISTORIA} días de consumo GENERADOS con la semilla {SEMILLA}.",
+            "Solo los nombres de los medicamentos están contextualizados en el Sanatorio El Roble. No son datos entregados por el sanatorio.",
             "Los días terminan ayer respecto de la fecha en que se descargó este archivo.",
         ]
     for linea in lineas:
@@ -128,9 +128,9 @@ def _poisson(azar: random.Random, media: float) -> int:
 
 
 def historia_simulada(hoy: date) -> list[tuple[date, str, str, int]]:
-    """Ventas diarias generadas: Poisson con día de la semana y días altos o flojos al azar."""
+    """Consumo diario generado: Poisson con día de la semana y días altos o flojos al azar."""
     azar = random.Random(SEMILLA)
-    patron = (1.1, 1.0, 1.0, 1.05, 1.2, 0.9, 0.65)
+    patron = (1.05, 1.0, 1.0, 1.0, 1.05, 0.95, 0.95)
     filas = []
     for atras in range(DIAS_DE_HISTORIA, 0, -1):
         dia = hoy - timedelta(days=atras)
@@ -146,11 +146,9 @@ def ejemplo(hoy: date | None = None) -> bytes:
     _leeme(libro, ejemplo=True)
     catalogo = libro.create_sheet("Catálogo")
     _encabezado(catalogo, CATALOGO)
-    for i, (nombre, presentacion, unidad, proveedor, costo, precio, paquete, existencia, plazo, _) in enumerate(EJEMPLO, start=1):
-        catalogo.append(
-            [nombre, presentacion, unidad, f"SIM-{i:03d}", "Regular", proveedor, costo, precio, paquete, existencia, plazo, None]
-        )
-        for columna in (7, 8, 10, 11):
+    for i, (nombre, presentacion, unidad, proveedor, costo, paquete, existencia, plazo, _) in enumerate(EJEMPLO, start=1):
+        catalogo.append([nombre, presentacion, unidad, f"SIM-{i:03d}", "Regular", proveedor, costo, paquete, existencia, plazo, None])
+        for columna in (7, 9, 10):
             catalogo.cell(catalogo.max_row, columna).fill = SUPUESTO
     historial = libro.create_sheet("Historial generado")
     _encabezado(historial, HISTORIAL)

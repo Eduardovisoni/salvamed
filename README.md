@@ -1,7 +1,12 @@
 # SALVAMED
 
-Apoyo para anticipar la reposición de medicamentos en la farmacia del Centro Médico El Roble.
+Apoyo para anticipar la reposición de medicamentos en la farmacia interna del **Sanatorio El Roble** (Jutiapa).
 Proyecto final de Investigación de Operaciones (Universidad Mariano Gálvez, sección B).
+
+El sanatorio es un hospital privado que atiende las 24 horas. Según lo que publica (ficha de
+[TuSalud](https://tusalud.com.gt/centros/sanatorio-el-roble-jutiapa) y su página de Facebook), tiene atención de
+emergencias, hospitalización, cuidados intensivos, cirugía general, sistema de ambulancias y especialista en
+traumatología. La farmacia interna despacha medicamentos a esos servicios.
 
 Hoy el aviso de que algo se está acabando pasa de persona en persona hasta llegar al encargado de compras.
 SALVAMED detecta la necesidad con el **modelo estocástico de inventario de revisión continua (clase 12)**,
@@ -12,8 +17,10 @@ Una sola aplicación con dos modos separados:
 
 | Modo | Para qué | Datos |
 | --- | --- | --- |
-| **Operación** | Venta y cobro, inventario, pedidos, recepción, dinero | Arranca vacía. Se carga con el formulario, la importación o el botón de demostración |
-| **Simulación** | Farmacia en tiempo acelerado para explicar el modelo y demostrar el flujo con Telegram | Corridas con semilla; nunca tocan la operación |
+| **Operación** | Despacho a servicios (Emergencia, Encamamiento, …), inventario, pedidos, recepción y costos | Arranca vacía. Se carga con el formulario, la importación o el botón de demostración |
+| **Simulación** | El sanatorio en tiempo acelerado: los servicios piden a la farmacia las 24 horas y se ve el flujo completo con Telegram | Corridas con semilla; nunca tocan la operación |
+
+No se registran datos de pacientes, cobros ni facturación: un despacho dice qué servicio recibió qué medicamentos.
 
 Más detalle:
 - [docs/modelo_y_supuestos.md](docs/modelo_y_supuestos.md): fórmulas, D, S, H, L, nivel de servicio, supuestos y límites.
@@ -30,7 +37,7 @@ pip install -r requirements-dev.txt
 python -m app
 ```
 
-Abre http://localhost:8000. Sin `DATABASE_URL` usa el archivo `salvamed.db` (SQLite) en la carpeta del proyecto.
+Abre http://localhost:8000. En **Configuración** están los servicios que reciben medicamentos (editables). Sin `DATABASE_URL` usa el archivo `salvamed.db` (SQLite) en la carpeta del proyecto.
 Si PowerShell no deja activar el entorno, usa `.\.venv\Scripts\python.exe -m app` sin activarlo.
 
 Pruebas:
@@ -101,7 +108,7 @@ entre sí (SALVAMED no hace polling si detecta que el bot tiene un webhook activ
 3. Al arrancar, la app registra el webhook `…/telegram/webhook` con el secreto. Cada botón valida chat, usuario,
    pedido y corrida, y se procesa una sola vez.
 
-Si el envío falla, la venta o el pedido no se deshacen: el mensaje queda con su error y se reintenta con espera
+Si el envío falla, el despacho o el pedido no se deshacen: el mensaje queda con su error y se reintenta con espera
 creciente (hasta 5 veces; después se puede reintentar desde la pantalla del pedido).
 
 ## Railway y la base de datos
@@ -124,9 +131,9 @@ columnas, los errores y la procedencia (archivo, hoja y fila); nada se guarda ha
 medicamentos ni historia, y no cambia existencias salvo que se marque registrar un ajuste.
 
 - `datos/plantilla_salvamed.xlsx`: plantilla vacía (catálogo, historial diario y configuración).
-- `datos/ejemplo_simulado.xlsx`: 8 medicamentos con 45 días de ventas **generadas** (semilla 2026). Todo es simulado.
+- `datos/ejemplo_simulado.xlsx`: 8 medicamentos con 45 días de consumo **generado** (semilla 2026). Todo es simulado.
 - `datos/SALVAMED en orden.csv`: el archivo del grupo. Es texto separado por tabulaciones, en cp1252. Sus `sem_1`…`sem_8`
-  se guardan como totales semanales; no se convierten en ventas diarias.
+  se guardan como totales semanales; no se convierten en consumos diarios.
 
 ## Estructura
 
@@ -135,9 +142,9 @@ medicamentos ni historia, y no cambia existencias salvo que se marque registrar 
 | `app/modelo.py` | Fórmulas de la clase 12 |
 | `app/consumo.py` | μD y σD con días completos; aumento de consumo |
 | `app/planificacion.py` | Parámetros con su fuente, plan y estado de cada medicamento |
-| `app/inventario.py` | Alta, venta, anulación, ajuste y recepción (siempre con movimientos) |
+| `app/inventario.py` | Alta, despacho a servicios, anulación, ajuste y recepción (siempre con movimientos) |
 | `app/pedidos.py` | Pedidos, posición de inventario y avisos de reposición |
-| `app/telegram.py`, `app/despacho.py` | Bot, bandeja de salida y tareas de fondo |
-| `app/simulacion.py` | Reloj virtual, escenarios, pausa de exposición y recepción simulada |
+| `app/telegram.py`, `app/tareas.py` | Bot, bandeja de salida y tareas de fondo |
+| `app/simulacion.py` | Reloj virtual, servicios y escenarios, pausa de exposición y recepción simulada |
 | `app/importacion.py`, `app/plantilla.py` | Importación y plantillas |
 | `app/seguridad.py` | Clave de acceso |

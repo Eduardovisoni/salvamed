@@ -1,11 +1,11 @@
-"""Panel monetario pequeño: ventas, costo de lo vendido, margen bruto y compras.
+"""Panel de costos: lo que costó lo consumido por los servicios y las compras.
 
-- Margen bruto = ventas − costo de las unidades vendidas (costo promedio
-  ponderado guardado en cada venta). No es utilidad ni ganancia neta: no
-  descuenta salarios, alquiler ni otros gastos.
+- Costo de lo consumido = unidades despachadas × costo promedio ponderado guardado
+  en cada despacho. Se muestra en total y por servicio. No es una factura ni un
+  cargo al paciente: SALVAMED no maneja cobros ni datos de pacientes.
 - Compras recibidas = unidades recibidas × costo del pedido + un envío por
-  pedido. Comprar no es costo de ventas: el costo aparece cuando se vende.
-- Compromisos = pedidos realizados que todavía no llegan. SALVAMED no registra
+  pedido. Comprar no es consumir: el costo de consumo aparece al despachar.
+- Comprometido = pedidos realizados que todavía no llegan. SALVAMED no registra
   pagos al proveedor.
 """
 
@@ -15,36 +15,40 @@ from datetime import datetime
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.db import PENDIENTE, RECEPCION, REALIZADO, Movimiento, Pedido, PedidoLinea, Venta, en_ambito
+from app.db import PENDIENTE, RECEPCION, REALIZADO, Despacho, DespachoLinea, Movimiento, Pedido, PedidoLinea, en_ambito
 
 
 @dataclass(frozen=True)
 class Resumen:
-    ventas: float
-    costo_ventas: float
-    numero_ventas: int
+    consumido: float
+    numero_despachos: int
+    unidades: int
+    por_servicio: tuple[tuple[str, float, int], ...]
     compras_recibidas: float
     compromisos: float
     por_gestionar: float
 
-    @property
-    def margen_bruto(self) -> float:
-        return self.ventas - self.costo_ventas
-
-    @property
-    def margen_porcentaje(self) -> float | None:
-        return self.margen_bruto / self.ventas * 100 if self.ventas else None
-
 
 def resumen(db: Session, corrida_id=None, desde: datetime | None = None, hasta: datetime | None = None) -> Resumen:
-    filtro = [en_ambito(Venta.corrida_id, corrida_id), Venta.estado == "confirmada"]
+    filtro = [en_ambito(Despacho.corrida_id, corrida_id), Despacho.estado == "confirmado"]
     if desde:
-        filtro.append(Venta.fecha >= desde)
+        filtro.append(Despacho.fecha >= desde)
     if hasta:
-        filtro.append(Venta.fecha <= hasta)
-    ventas, costo, numero = db.execute(
-        select(func.coalesce(func.sum(Venta.total), 0), func.coalesce(func.sum(Venta.costo_total), 0), func.count(Venta.id)).where(*filtro)
-    ).one()
+        filtro.append(Despacho.fecha <= hasta)
+    por_servicio = tuple(
+        (servicio, round(float(costo), 2), int(numero))
+        for servicio, costo, numero in db.execute(
+            select(Despacho.servicio, func.coalesce(func.sum(Despacho.costo_total), 0), func.count(Despacho.id))
+            .where(*filtro)
+            .group_by(Despacho.servicio)
+            .order_by(func.sum(Despacho.costo_total).desc())
+        )
+    )
+    unidades = db.scalar(
+        select(func.coalesce(func.sum(DespachoLinea.cantidad), 0))
+        .join(Despacho, Despacho.id == DespachoLinea.despacho_id)
+        .where(*filtro)
+    )
 
     filtro_rec = [en_ambito(Movimiento.corrida_id, corrida_id), Movimiento.tipo == RECEPCION]
     if desde:
@@ -72,4 +76,12 @@ def resumen(db: Session, corrida_id=None, desde: datetime | None = None, hasta: 
                 compromisos += pedido.costo_envio
         else:
             por_gestionar += sum(l.cantidad_pedida * (l.costo_unitario or 0) for l in lineas) + pedido.costo_envio
-    return Resumen(float(ventas), float(costo), int(numero), round(recibido, 2), round(compromisos, 2), round(por_gestionar, 2))
+    return Resumen(
+        round(sum(c for _, c, _ in por_servicio), 2),
+        sum(n for _, _, n in por_servicio),
+        int(unidades or 0),
+        por_servicio,
+        round(recibido, 2),
+        round(compromisos, 2),
+        round(por_gestionar, 2),
+    )

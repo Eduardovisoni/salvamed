@@ -1,12 +1,12 @@
-"""μD y σD a partir de lo que realmente se vendió.
+"""μD y σD a partir de lo que realmente se despachó a los servicios.
 
 Solo cuentan días completos: hoy todavía no termina, así que se muestra aparte
 como indicador intradía y no entra en el promedio. Se usan los últimos N días
-completos (N configurable, 30 al inicio) en los que la farmacia abrió.
+completos (N configurable, 30 al inicio) en los que se operó (el sanatorio opera todos los días).
 
 Un día cuenta como observado si el medicamento ya estaba en el sistema ese día
 (desde `observado_desde`) o si hay historia diaria importada para ese día. Un
-día observado sin ventas vale 0; un día sin registro no se convierte en 0.
+día observado sin despachos vale 0; un día sin registro no se convierte en 0.
 
 Con 2 o más días completos ya se puede calcular la desviación muestral, pero
 con pocos días la estimación es provisional. Si todavía hay menos de 7 días
@@ -14,8 +14,8 @@ diarios y existe historia semanal importada, se usa la base semanal convertida
 a días: μD = μS / d y σD = σS / √d, donde d son los días abiertos por semana
 (supone días independientes entre sí).
 
-Las ventas que no se hicieron por falta de existencia no quedan registradas:
-la demanda observada puede subestimar la demanda real.
+Lo que un servicio necesitó y no se le pudo despachar por falta de existencia
+no queda registrado: la demanda observada puede subestimar la demanda real.
 """
 
 from dataclasses import dataclass
@@ -47,13 +47,13 @@ class Consumo:
         if self.base == "semanal":
             return f"Derivado de {self.semanas} totales semanales importados (supuesto: días independientes)"
         if self.calidad == "sin_datos":
-            return "Todavía no hay días completos con ventas registradas"
+            return "Todavía no hay días completos con despachos registrados"
         if self.calidad == "insuficiente":
             return "Solo hay 1 día completo: se necesitan al menos 2 para la desviación"
         dias = f"{self.dias} {'día completo' if self.dias == 1 else 'días completos'}"
         if self.calidad == "provisional":
-            return f"Provisional: {dias} de ventas"
-        return f"Estimación actualizada con {dias} de ventas"
+            return f"Provisional: {dias} de despachos"
+        return f"Estimación actualizada con {dias} de despachos"
 
 
 def a_utc(fecha: datetime) -> datetime:
@@ -71,7 +71,7 @@ def hora_local(fecha: datetime) -> datetime:
 
 
 def abre(dia: date, dias_semana: str) -> bool:
-    """dias_semana: 7 caracteres de lunes a domingo, '1' si la farmacia abre."""
+    """dias_semana: 7 caracteres de lunes a domingo, '1' si se opera ese día."""
     return dias_semana[dia.weekday()] == "1"
 
 
@@ -80,7 +80,7 @@ def dias_abiertos_por_semana(dias_semana: str) -> int:
 
 
 def dias_de_ventana(hoy: date, ventana: int, dias_semana: str) -> list[date]:
-    """Los últimos `ventana` días completos (antes de hoy) en que la farmacia abrió."""
+    """Los últimos `ventana` días completos (antes de hoy) en que se operó."""
     dias, dia = [], hoy - timedelta(days=1)
     limite = ventana * 7
     while len(dias) < ventana and limite > 0:
@@ -92,7 +92,7 @@ def dias_de_ventana(hoy: date, ventana: int, dias_semana: str) -> list[date]:
 
 
 def consumo_de(
-    ventas_por_dia: dict[date, int],
+    despachos_por_dia: dict[date, int],
     historico_diario: dict[date, int],
     semanales: list[int],
     observado_desde: date | None,
@@ -105,8 +105,8 @@ def consumo_de(
         if dia in historico_diario:
             observados.append((dia, historico_diario[dia]))
         elif observado_desde is not None and dia >= observado_desde:
-            observados.append((dia, ventas_por_dia.get(dia, 0)))
-    hoy_total = ventas_por_dia.get(hoy, 0)
+            observados.append((dia, despachos_por_dia.get(dia, 0)))
+    hoy_total = despachos_por_dia.get(hoy, 0)
     valores = [cantidad for _, cantidad in observados]
     n = len(valores)
     calidad = "completa" if n >= ventana else "provisional"
@@ -149,7 +149,7 @@ def aumento_de(consumo: Consumo, umbral: float = 1.5, recientes: int = 7, minimo
     Avisa si el promedio reciente es al menos `umbral` veces el anterior y la
     diferencia es de 3 errores estándar o más: z = (reciente − anterior) /
     (s_anterior · √(1/7 + 1/n)). Es una prueba simple y explicable, no un
-    diagnóstico: con menos de 14 días anteriores no se evalúa, con pocas ventas
+    diagnóstico: con menos de 14 días anteriores no se evalúa, con poco consumo
     puede haber falsas alarmas, y un pico genuino no se elimina.
     """
     if consumo.base != "diaria":

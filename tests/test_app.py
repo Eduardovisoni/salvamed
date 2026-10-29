@@ -15,7 +15,7 @@ def test_salud(cliente):
     assert cliente.get("/salud").json() == {"ok": True}
 
 
-@pytest.mark.parametrize("ruta", ["/", "/medicamentos", "/medicamentos/nuevo", "/pedidos", "/ventas", "/configuracion", "/importar", "/simulacion"])
+@pytest.mark.parametrize("ruta", ["/", "/medicamentos", "/medicamentos/nuevo", "/pedidos", "/costos", "/configuracion", "/importar", "/simulacion"])
 def test_las_pantallas_cargan_con_la_base_vacia(cliente, ruta):
     assert cliente.get(ruta).status_code == 200
 
@@ -44,17 +44,19 @@ def test_alta_valida_y_no_repite_nombre_y_presentacion(cliente):
     assert "Ya existe" in cliente.post("/medicamentos", data=datos).text
 
 
-def test_vender_desde_la_pantalla_y_aviso_de_reposicion(cliente, db):
+def test_despachar_desde_la_pantalla_y_aviso_de_reposicion(cliente, db):
     m = medicamento(db, existencia=40)
-    token = _token(cliente.get("/").text)
-    datos = {"token": token, "medicamento_id": [str(m.id)], "cantidad": ["25"]}
-    r = cliente.post("/ventas", data=datos, follow_redirects=False)
+    html = cliente.get("/").text
+    assert "Emergencia" in html and "Cuidados Intensivos" in html
+    datos = {"token": _token(html), "servicio": "Emergencia", "medicamento_id": [str(m.id)], "cantidad": ["25"]}
+    r = cliente.post("/despachos", data=datos, follow_redirects=False)
     assert r.status_code == 303
     pagina = cliente.get(r.headers["location"]).text
-    assert "Venta #" in pagina and "Reposición necesaria" in pagina
-    assert cliente.post("/ventas", data=datos, follow_redirects=False).headers["location"] == r.headers["location"]
+    assert "Despacho #" in pagina and "a Emergencia" in pagina and "Reposición necesaria" in pagina
+    assert cliente.post("/despachos", data=datos, follow_redirects=False).headers["location"] == r.headers["location"]
     db.refresh(m)
     assert m.existencia == 15
+    assert "Emergencia" in cliente.get("/costos").text
     pedido = db.scalar(select(Pedido))
     assert pedido.estado == "pendiente"
     assert cliente.post(f"/pedidos/{pedido.id}/realizado", follow_redirects=False).status_code == 303
@@ -62,10 +64,32 @@ def test_vender_desde_la_pantalla_y_aviso_de_reposicion(cliente, db):
     assert pedido.estado == "realizado" and pedido.confirmado_por.startswith("Web")
 
 
-def test_no_vende_mas_de_lo_que_hay(cliente, db):
+def test_despacho_a_un_servicio_que_no_existe(cliente, db):
+    m = medicamento(db, existencia=5)
+    r = cliente.post("/despachos", data={"token": "x1", "servicio": "Cafetería", "medicamento_id": [str(m.id)], "cantidad": ["1"]})
+    assert r.status_code == 400 and "Elige el servicio" in r.text
+
+
+def test_no_despacha_mas_de_lo_que_hay(cliente, db):
     m = medicamento(db, existencia=3)
-    r = cliente.post("/ventas", data={"token": "abc", "medicamento_id": [str(m.id)], "cantidad": ["5"]})
+    r = cliente.post("/despachos", data={"token": "abc", "servicio": "Encamamiento", "medicamento_id": [str(m.id)], "cantidad": ["5"]})
     assert r.status_code == 400 and "Solo hay 3" in r.text
+
+
+def test_los_servicios_se_configuran(cliente, db):
+    from app.db import Configuracion
+
+    formulario = {
+        "dias_operacion_anio": "365", "hora_apertura": "0", "hora_cierre": "24", "nivel_servicio": "95",
+        "tasa_mantenimiento": "25", "costo_pedido": "35", "tiempo_entrega": "3", "ventana_dias": "30",
+        "dias_aviso": "7", "aumento_umbral": "1.5", "servicios": "Emergencia\nPediatría\n\nEmergencia",
+    }
+    formulario.update({f"dia_{i}": "1" for i in range(7)})
+    assert cliente.post("/configuracion", data=formulario, follow_redirects=False).status_code == 303
+    db.expire_all()
+    assert db.get(Configuracion, 1).servicios == "Emergencia\nPediatría"
+    formulario["servicios"] = "   "
+    assert cliente.post("/configuracion", data=formulario).status_code == 400
 
 
 def test_detalle_muestra_el_plan_y_la_fuente(cliente, db):

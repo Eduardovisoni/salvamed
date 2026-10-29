@@ -8,7 +8,7 @@ from tests.ayudas import medicamento
 
 def _pedido_con_aviso(db):
     m = medicamento(db, existencia=40)
-    inventario.vender(db, [LineaPedida(m.id, 25)], "v", ahora())
+    inventario.despachar(db, "Emergencia", [LineaPedida(m.id, 25)], "v", ahora())
     _, pedido = pedidos.evaluar_reposicion(db, m, ahora())
     return m, pedido, db.scalar(select(Mensaje).where(Mensaje.pedido_id == pedido.id))
 
@@ -44,7 +44,7 @@ def test_envio_con_botones_y_ids(db, telegram_real):
     assert textos == ["✅ Pedido realizado", "✏️ Cambiar cantidad", "🔎 Ver detalle"]
 
 
-def test_si_telegram_falla_se_reintenta_sin_deshacer_la_venta(db, telegram_real):
+def test_si_telegram_falla_se_reintenta_sin_deshacer_el_despacho(db, telegram_real):
     m, pedido, mensaje = _pedido_con_aviso(db)
     via = telegram.TransporteSimulado()
     via.fallar = True

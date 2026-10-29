@@ -12,7 +12,7 @@
   var escalas = {};
   var reloj = { minuto: 0, recibido: 0, velocidad: 1, corriendo: false, md: 720, mps: 10 };
   var colores = ["#0f766e", "#7c3aed", "#b45309", "#2563eb", "#be185d", "#15803d", "#c2410c", "#0e7490"];
-  var caras = ["🧑", "👩", "👨", "🧓", "👵", "👴", "🧑‍🦱", "👩‍🦰"];
+  var servicios = [];
 
   function $(id) { return document.getElementById(id); }
   function dinero(v) { return "Q " + Number(v || 0).toLocaleString("es-GT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
@@ -69,6 +69,7 @@
     };
     $("seg-dia").textContent = Math.round(reloj.md / reloj.mps);
     pintarControles();
+    pintarServicios();
     pintarEstantes(previo);
     pintarDinero();
     var nuevos = datos.eventos.filter(function (e) { return e.id > ultimoEvento; });
@@ -173,16 +174,32 @@
     });
   }
 
+  function pintarServicios() {
+    var lista = $("servicios");
+    if (servicios.length) return;
+    servicios = estado.servicios.map(function (s) { return s.nombre; });
+    estado.servicios.forEach(function (s) {
+      var li = el("li", "sim-servicio");
+      li.dataset.servicio = s.nombre;
+      li.appendChild(el("span", "sim-servicio__icono", s.icono));
+      li.appendChild(el("span", "sim-servicio__nombre", s.nombre));
+      li.appendChild(el("span", "sim-servicio__cuenta", "0"));
+      lista.appendChild(li);
+    });
+  }
+
   function pintarDinero() {
     var d = estado.dinero;
-    var filas = [
-      ["Ventas (" + d.numero_ventas + ")", dinero(d.ventas)],
-      ["Costo de lo vendido", dinero(d.costo)],
-      ["Margen bruto estimado", dinero(d.margen), "cuentas__total"],
-      ["Compras recibidas", dinero(d.compras)],
-      ["Comprometido en pedidos", dinero(d.compromisos)],
-      ["Unidades que faltaron", String(d.faltantes), d.faltantes ? "cuentas__alerta" : ""],
-    ];
+    var filas = [["Costo de lo consumido (" + d.numero_despachos + " despachos)", dinero(d.consumido), "cuentas__total"]];
+    d.por_servicio.forEach(function (x) { filas.push(["· " + x[0], dinero(x[1])]); });
+    filas.push(["Compras recibidas", dinero(d.compras)]);
+    filas.push(["Comprometido en pedidos", dinero(d.compromisos)]);
+    filas.push(["Unidades que no se pudieron despachar", String(d.faltantes), d.faltantes ? "cuentas__alerta" : ""]);
+    var cuentas = {};
+    d.por_servicio.forEach(function (x) { cuentas[x[0]] = x[2]; });
+    document.querySelectorAll(".sim-servicio").forEach(function (li) {
+      li.querySelector(".sim-servicio__cuenta").textContent = cuentas[li.dataset.servicio] || 0;
+    });
     var dl = $("dinero");
     dl.innerHTML = "";
     filas.forEach(function (f) {
@@ -191,15 +208,15 @@
       div.appendChild(el("dd", "", f[1]));
       dl.appendChild(div);
     });
-    $("caja-total").textContent = dinero(d.ventas);
+    $("caja-total").textContent = d.unidades + " unidades";
   }
 
-  var iconos = { venta: "🧾", aviso: "⚠️", pausa: "⏸", pedido: "✅", reanudar: "▶", recepcion: "🚚", cierre: "🌙", faltante: "❌", inicio: "🏁" };
+  var iconos = { despacho: "💊", aviso: "⚠️", pausa: "⏸", pedido: "✅", reanudar: "▶", recepcion: "🚚", cierre: "🌙", faltante: "❌", inicio: "🏁", aumento: "📈" };
 
   function textoEvento(e) {
-    if (e.tipo === "venta") {
+    if (e.tipo === "despacho") {
       var partes = (e.datos.items || []).map(function (x) { var t = porId(x[0]); return x[1] + "× " + (t ? t.nombre : "?"); });
-      return e.texto + ": " + partes.join(", ") + " · " + dinero(e.datos.total);
+      return e.datos.servicio + ": " + partes.join(", ") + " · " + dinero(e.datos.costo);
     }
     return e.texto;
   }
@@ -207,7 +224,7 @@
   function pintarEventos(nuevos) {
     var lista = $("eventos");
     nuevos.forEach(function (e) {
-      if (e.tipo === "venta" && nuevos.length > 60) return;
+      if (e.tipo === "despacho" && nuevos.length > 60) return;
       var li = el("li", "evento evento--" + e.tipo);
       li.appendChild(el("span", "evento__icono", iconos[e.tipo] || "•"));
       var cuerpo = el("span", "evento__texto");
@@ -220,21 +237,25 @@
   }
 
   function animar(nuevos, salto) {
-    var ventas = nuevos.filter(function (e) { return e.tipo === "venta"; });
-    if (salto) ventas = ventas.slice(-4);
-    var intervalo = Math.max(Math.min(450 / Math.max(ventas.length, 1), 220), 60);
-    ventas.forEach(function (e, i) { setTimeout(function () { cliente(e); }, i * intervalo); });
+    var despachos = nuevos.filter(function (e) { return e.tipo === "despacho"; });
+    if (salto) despachos = despachos.slice(-4);
+    var intervalo = Math.max(Math.min(450 / Math.max(despachos.length, 1), 220), 60);
+    despachos.forEach(function (e, i) { setTimeout(function () { solicitud(e); }, i * intervalo); });
   }
 
-  function cliente(e) {
+  function solicitud(e) {
     var pasillo = $("pasillo");
     if (!pasillo || document.hidden) return;
-    var persona = el("span", "cliente", caras[(e.datos.cliente || 0) % caras.length]);
-    persona.style.top = (10 + Math.random() * 60) + "%";
+    var indice = Math.max(servicios.indexOf(e.datos.servicio), 0);
+    var origen = document.querySelector('.sim-servicio[data-servicio="' + e.datos.servicio + '"]');
+    if (origen) { origen.classList.remove("sim-servicio--pide"); void origen.offsetWidth; origen.classList.add("sim-servicio--pide"); }
+    var persona = el("span", "cliente", "🧑‍⚕️");
+    persona.title = e.datos.servicio;
+    persona.style.top = "calc(" + ((indice + 0.5) / Math.max(servicios.length, 1) * 100) + "% - 16px)";
     pasillo.appendChild(persona);
     requestAnimationFrame(function () { requestAnimationFrame(function () { persona.classList.add("cliente--caminando"); }); });
     setTimeout(function () {
-      var ticket = el("span", "ticket", textoEvento(e).replace(/^Cliente \d+: /, ""));
+      var ticket = el("span", "ticket", textoEvento(e));
       ticket.style.top = persona.style.top;
       pasillo.appendChild(ticket);
       (e.datos.items || []).forEach(function (x) {

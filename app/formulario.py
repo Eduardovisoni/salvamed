@@ -36,7 +36,7 @@ class Grupo:
 GRUPOS_MEDICAMENTO = (
     Grupo(
         "Medicamento",
-        "Lo que se busca al vender. La presentación distingue productos con el mismo nombre.",
+        "Lo que se busca al despachar. La presentación distingue productos con el mismo nombre.",
         (
             Campo("nombre", "Nombre", tipo="texto", obligatorio=True, largo_max=120, marcador="Ej. Ceftriaxona"),
             Campo("presentacion", "Presentación", tipo="texto", largo_max=80, marcador="Ej. 1 g, 500 mg/5 ml"),
@@ -47,17 +47,16 @@ GRUPOS_MEDICAMENTO = (
         ),
     ),
     Grupo(
-        "Precios y paquete",
-        "Costo de compra: lo que paga la farmacia al proveedor. Precio de venta: lo que paga el cliente.",
+        "Costo y paquete",
+        "Costo de compra: lo que paga el sanatorio al proveedor por unidad. Sirve para H y para valorizar lo consumido.",
         (
             Campo("costo_compra", "Costo de compra por unidad (Q)", minimo=0, minimo_incluido=False),
-            Campo("precio_venta", "Precio de venta por unidad (Q)", minimo=0, minimo_incluido=False),
             Campo("unidades_paquete", "Unidades por paquete", tipo="entero", minimo=1, ayuda="Para redondear el pedido a paquetes completos."),
         ),
     ),
     Grupo(
         "Existencia inicial",
-        "Se registra como movimiento de apertura. Después, la existencia solo cambia con ventas, recepciones y ajustes.",
+        "Se registra como movimiento de apertura. Después, la existencia solo cambia con despachos, recepciones y ajustes.",
         (Campo("existencia_inicial", "Existencia al darlo de alta", tipo="entero", minimo=0),),
         solo_alta=True,
     ),
@@ -81,11 +80,12 @@ GRUPOS_MEDICAMENTO = (
 GRUPOS_CONFIGURACION = (
     Grupo(
         "Calendario",
-        "Supuesto de demostración, editable. Si la farmacia cierra algún día, A y L deben contar solo días abiertos.",
+        "El sanatorio opera 24 horas todos los días (TuSalud y Facebook). Si un servicio cerrara algún día, A y L deben contar solo días de operación.",
         (
             Campo("dias_operacion_anio", "Días de operación al año", simbolo="A", tipo="entero", obligatorio=True, minimo=1, maximo=366),
-            Campo("hora_apertura", "Hora de apertura", tipo="entero", obligatorio=True, minimo=0, maximo=23),
-            Campo("hora_cierre", "Hora de cierre", tipo="entero", obligatorio=True, minimo=1, maximo=24),
+            Campo("hora_apertura", "Inicio de la jornada (hora)", tipo="entero", obligatorio=True, minimo=0, maximo=23,
+                  ayuda="24 horas: de 0 a 24."),
+            Campo("hora_cierre", "Fin de la jornada (hora)", tipo="entero", obligatorio=True, minimo=1, maximo=24),
         ),
     ),
     Grupo(
@@ -104,7 +104,7 @@ GRUPOS_CONFIGURACION = (
     ),
     Grupo(
         "Estimación",
-        "Cómo se calcula el consumo con las ventas.",
+        "Cómo se calcula el consumo con los despachos.",
         (
             Campo("ventana_dias", "Ventana de días completos", tipo="entero", obligatorio=True, minimo=2, maximo=365),
             Campo("dias_aviso", "Avisar «pedir pronto» con días de anticipación", tipo="entero", obligatorio=True, minimo=0, maximo=60),

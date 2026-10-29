@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy import func, select
 
 from app import dinero, inventario, pedidos
-from app.db import Mensaje, Movimiento, Pedido, PedidoLinea, Venta, ahora
+from app.db import Despacho, Mensaje, Movimiento, Pedido, PedidoLinea, ahora
 from app.inventario import ErrorDeOperacion, LineaPedida
 from app.planificacion import evaluar
 from tests.ayudas import medicamento, proveedor
@@ -30,51 +30,67 @@ def test_el_plan_usa_la_configuracion_y_dice_de_donde_sale(db):
     assert e.sugerida % 10 == 0 and e.sugerida >= e.plan.Q
 
 
-def test_venta_confirma_todo_o_nada(db):
+def test_despacho_confirma_todo_o_nada(db):
     a = medicamento(db, "A", existencia=10)
     b = medicamento(db, "B", existencia=2)
     with pytest.raises(ErrorDeOperacion):
-        inventario.vender(db, [LineaPedida(a.id, 3), LineaPedida(b.id, 5)], "t1", ahora())
+        inventario.despachar(db, "Emergencia", [LineaPedida(a.id, 3), LineaPedida(b.id, 5)], "t1", ahora())
     db.refresh(a), db.refresh(b)
     assert (a.existencia, b.existencia) == (10, 2)
-    assert db.scalar(select(func.count()).select_from(Venta)) == 0
+    assert db.scalar(select(func.count()).select_from(Despacho)) == 0
 
 
-def test_el_mismo_carrito_no_se_cobra_dos_veces(db):
+def test_despacho_exige_servicio(db):
     m = medicamento(db, existencia=10)
-    v1 = inventario.vender(db, [LineaPedida(m.id, 3)], "mismo", ahora())
-    v2 = inventario.vender(db, [LineaPedida(m.id, 3)], "mismo", ahora())
+    with pytest.raises(ErrorDeOperacion):
+        inventario.despachar(db, "  ", [LineaPedida(m.id, 1)], "t", ahora())
+
+
+def test_la_misma_lista_no_se_descuenta_dos_veces(db):
+    m = medicamento(db, existencia=10)
+    d1 = inventario.despachar(db, "Encamamiento", [LineaPedida(m.id, 3)], "mismo", ahora())
+    d2 = inventario.despachar(db, "Encamamiento", [LineaPedida(m.id, 3)], "mismo", ahora())
     db.refresh(m)
-    assert v1.id == v2.id
+    assert d1.id == d2.id
     assert m.existencia == 7
-    assert v1.total == 45
+    assert d1.costo_total == 30 and d1.servicio == "Encamamiento"
 
 
-def test_editar_el_catalogo_no_cambia_ventas_pasadas(db):
+def test_editar_el_catalogo_no_cambia_despachos_pasados(db):
     m = medicamento(db, existencia=10)
-    venta = inventario.vender(db, [LineaPedida(m.id, 2)], "v", ahora())
-    m.precio_venta = 99
+    registro = inventario.despachar(db, "Emergencia", [LineaPedida(m.id, 2)], "v", ahora())
     m.costo_compra = 50
+    m.costo_promedio = 50
     db.commit()
-    db.refresh(venta)
-    assert venta.total == 30 and venta.costo_total == 20
+    db.refresh(registro)
+    assert registro.costo_total == 20
     r = dinero.resumen(db)
-    assert r.margen_bruto == 10
+    assert r.consumido == 20 and r.unidades == 2 and r.por_servicio == (("Emergencia", 20.0, 1),)
+
+
+def test_costo_por_servicio(db):
+    m = medicamento(db, existencia=20)
+    inventario.despachar(db, "Emergencia", [LineaPedida(m.id, 3)], "a", ahora())
+    inventario.despachar(db, "Encamamiento", [LineaPedida(m.id, 1)], "b", ahora())
+    inventario.despachar(db, "Emergencia", [LineaPedida(m.id, 1)], "c", ahora())
+    r = dinero.resumen(db)
+    assert r.por_servicio == (("Emergencia", 40.0, 2), ("Encamamiento", 10.0, 1))
+    assert r.consumido == 50 and r.numero_despachos == 3
 
 
 def test_anular_devuelve_unidades_con_un_movimiento(db):
     m = medicamento(db, existencia=10)
-    venta = inventario.vender(db, [LineaPedida(m.id, 4)], "v", ahora())
+    registro = inventario.despachar(db, "Emergencia", [LineaPedida(m.id, 4)], "v", ahora())
     with pytest.raises(ErrorDeOperacion):
-        inventario.anular_venta(db, venta, "", ahora())
-    inventario.anular_venta(db, venta, "Producto equivocado", ahora())
+        inventario.anular_despacho(db, registro, "", ahora())
+    inventario.anular_despacho(db, registro, "Servicio equivocado", ahora())
     db.refresh(m)
     assert m.existencia == 10
     tipos = [mv.tipo for mv in db.scalars(select(Movimiento).where(Movimiento.medicamento_id == m.id).order_by(Movimiento.id))]
-    assert tipos == ["apertura", "venta", "anulacion"]
-    assert dinero.resumen(db).ventas == 0
+    assert tipos == ["apertura", "despacho", "anulacion"]
+    assert dinero.resumen(db).consumido == 0
     with pytest.raises(ErrorDeOperacion):
-        inventario.anular_venta(db, venta, "otra vez", ahora())
+        inventario.anular_despacho(db, registro, "otra vez", ahora())
 
 
 def test_ajuste_explica_la_diferencia(db):
@@ -87,8 +103,8 @@ def test_ajuste_explica_la_diferencia(db):
 
 def test_llegar_al_punto_de_reorden_crea_un_solo_pedido_y_su_aviso(db):
     m = medicamento(db, existencia=40)
-    venta = inventario.vender(db, [LineaPedida(m.id, 25)], "v", ahora())
-    assert venta.id
+    registro = inventario.despachar(db, "Emergencia", [LineaPedida(m.id, 25)], "v", ahora())
+    assert registro.id
     e, nuevo = pedidos.evaluar_reposicion(db, m, ahora())
     assert e.estado.clave == "pedir" and nuevo is not None
     linea = db.scalar(select(PedidoLinea).where(PedidoLinea.pedido_id == nuevo.id))

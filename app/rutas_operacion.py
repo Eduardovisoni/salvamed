@@ -1,4 +1,4 @@
-"""Pantallas de operación: venta, inventario, medicamento, pedidos y recepción."""
+"""Pantallas de operación: despacho a servicios, inventario, medicamento, pedidos y recepción."""
 
 import secrets
 from datetime import datetime, time, timedelta
@@ -8,7 +8,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import despacho, dinero, graficas, inventario, pedidos
+from app import dinero, graficas, inventario, pedidos, tareas
 from app.consumo import GUATEMALA, dia_local
 from app.db import (
     PENDIENTE,
@@ -18,15 +18,16 @@ from app.db import (
     Pedido,
     PedidoLinea,
     PlanDiario,
+    Despacho,
     Proveedor,
-    Venta,
     ahora,
+    lista_de_servicios,
     en_ambito,
     sesion,
 )
 from app.formulario import GRUPOS_MEDICAMENTO, campos, leer, valores_de
 from app.inventario import ErrorDeOperacion, LineaPedida
-from app.planificacion import configuracion, evaluar, evaluar_varios
+from app.planificacion import configuracion, consumo_por_servicio, evaluar, evaluar_varios
 from app.web import medicamento_de, entero, pagina
 
 rutas = APIRouter()
@@ -66,10 +67,10 @@ def _evaluar_despues(db: Session, ids: set[int], momento: datetime) -> list[Pedi
     return nuevos
 
 
-# ---------------------------------------------------------------- Venta
+# ---------------------------------------------------------------- Despacho
 
 
-def _catalogo_para_venta(evaluaciones) -> list[dict]:
+def _catalogo_para_despacho(evaluaciones) -> list[dict]:
     return [
         {
             "id": e.m.id,
@@ -78,14 +79,13 @@ def _catalogo_para_venta(evaluaciones) -> list[dict]:
             "unidad": e.m.unidad,
             "sku": e.m.sku,
             "existencia": e.m.existencia,
-            "precio": e.m.precio_venta,
             "estado": e.estado.clave,
         }
         for e in sorted(evaluaciones, key=lambda e: _sin_tildes(e.m.nombre_completo))
     ]
 
 
-def _pagina_venta(request, db: Session, carrito=None, error="", venta=None, estado=200, agregar=None):
+def _pagina_despacho(request, db: Session, lista=None, servicio="", error="", hecho=None, estado=200, agregar=None):
     momento = ahora()
     evaluaciones = _evaluaciones(db, momento=momento)
     conteo = {clave: 0 for clave in ORDEN}
@@ -93,28 +93,30 @@ def _pagina_venta(request, db: Session, carrito=None, error="", venta=None, esta
         conteo[e.estado.clave] = conteo.get(e.estado.clave, 0) + 1
     inicio_hoy = datetime.combine(dia_local(momento), time(), GUATEMALA)
     recientes = list(
-        db.scalars(select(Venta).where(Venta.corrida_id.is_(None)).order_by(Venta.id.desc()).limit(8))
+        db.scalars(select(Despacho).where(Despacho.corrida_id.is_(None)).order_by(Despacho.id.desc()).limit(8))
     )
     nuevos = []
-    if venta is not None:
+    if hecho is not None:
         nuevos = [
             (p, pedidos.lineas_de(db, p))
             for p in db.scalars(
-                select(Pedido).where(Pedido.corrida_id.is_(None), Pedido.creado >= venta.fecha, Pedido.origen == "automatico")
+                select(Pedido).where(Pedido.corrida_id.is_(None), Pedido.creado >= hecho.fecha, Pedido.origen == "automatico")
             )
         ]
     return pagina(
         request,
-        "venta.html",
+        "despacho.html",
         {
-            "pestana": "venta",
-            "catalogo": _catalogo_para_venta(evaluaciones),
-            "carrito": carrito or [],
+            "pestana": "despacho",
+            "catalogo": _catalogo_para_despacho(evaluaciones),
+            "servicios": lista_de_servicios(configuracion(db).servicios),
+            "servicio": servicio,
+            "lista": lista or [],
             "agregar": agregar,
             "token": secrets.token_urlsafe(16),
             "error": error,
-            "venta": venta,
-            "lineas_venta": inventario.lineas_de(db, venta) if venta else [],
+            "hecho": hecho,
+            "lineas_hecho": inventario.lineas_de(db, hecho) if hecho else [],
             "nuevos_pedidos": nuevos,
             "conteo": conteo,
             "por_gestionar": len(pedidos.pedidos(db, None, (PENDIENTE,))),
@@ -126,91 +128,95 @@ def _pagina_venta(request, db: Session, carrito=None, error="", venta=None, esta
 
 
 @rutas.get("/")
-def venta(request: Request, venta: int | None = None, agregar: int | None = None, db: Session = Depends(sesion)):
-    hecha = db.get(Venta, venta) if venta else None
-    if hecha is not None and hecha.corrida_id is not None:
-        hecha = None
-    return _pagina_venta(request, db, venta=hecha, agregar=agregar)
+def despacho(request: Request, hecho: int | None = None, agregar: int | None = None, db: Session = Depends(sesion)):
+    registro = db.get(Despacho, hecho) if hecho else None
+    if registro is not None and registro.corrida_id is not None:
+        registro = None
+    return _pagina_despacho(request, db, hecho=registro, agregar=agregar)
 
 
-@rutas.post("/ventas")
-async def cobrar(request: Request, tareas: BackgroundTasks, db: Session = Depends(sesion)):
+@rutas.post("/despachos")
+async def despachar(request: Request, tareas_fondo: BackgroundTasks, db: Session = Depends(sesion)):
     formulario = await request.form()
     ids = formulario.getlist("medicamento_id")
     cantidades = formulario.getlist("cantidad")
-    lineas, carrito = [], []
+    servicio = str(formulario.get("servicio", ""))
+    lineas, lista = [], []
     error = ""
     for medicamento_id, cantidad in zip(ids, cantidades):
         mid, n = entero(medicamento_id), entero(cantidad)
-        carrito.append({"id": mid, "cantidad": cantidad})
+        lista.append({"id": mid, "cantidad": cantidad})
         if mid is None or n is None:
             error = "Revisa las cantidades: deben ser números enteros."
             continue
         lineas.append(LineaPedida(mid, n))
+    if not error and servicio not in lista_de_servicios(configuracion(db).servicios):
+        error = "Elige el servicio que recibe los medicamentos."
     if not error:
         try:
             momento = ahora()
-            hecha = inventario.vender(db, lineas, str(formulario.get("token", "")), momento)
+            hecho = inventario.despachar(
+                db, servicio, lineas, str(formulario.get("token", "")), momento, nota=str(formulario.get("nota", ""))
+            )
         except ErrorDeOperacion as problema:
             error = str(problema)
     if error:
-        return _pagina_venta(request, db, carrito=carrito, error=error, estado=400)
-    if hecha.fecha == momento:
-        nuevos = _evaluar_despues(db, {m.id for _, m in inventario.lineas_de(db, hecha)}, momento)
+        return _pagina_despacho(request, db, lista=lista, servicio=servicio, error=error, estado=400)
+    if hecho.fecha == momento:
+        nuevos = _evaluar_despues(db, {m.id for _, m in inventario.lineas_de(db, hecho)}, momento)
         if nuevos:
-            despacho.programar(tareas)
-    return RedirectResponse(f"/?venta={hecha.id}", status_code=303)
+            tareas.programar(tareas_fondo)
+    return RedirectResponse(f"/?hecho={hecho.id}", status_code=303)
 
 
-@rutas.get("/ventas")
-def ventas(request: Request, db: Session = Depends(sesion)):
+@rutas.get("/costos")
+def costos(request: Request, db: Session = Depends(sesion)):
     momento = ahora()
     inicio_hoy = datetime.combine(dia_local(momento), time(), GUATEMALA)
     return pagina(
         request,
-        "ventas.html",
+        "costos.html",
         {
-            "pestana": "ventas",
+            "pestana": "costos",
             "hoy": dinero.resumen(db, None, inicio_hoy),
             "mes": dinero.resumen(db, None, inicio_hoy - timedelta(days=29)),
             "total": dinero.resumen(db, None),
-            "ventas": list(db.scalars(select(Venta).where(Venta.corrida_id.is_(None)).order_by(Venta.id.desc()).limit(60))),
+            "despachos": list(db.scalars(select(Despacho).where(Despacho.corrida_id.is_(None)).order_by(Despacho.id.desc()).limit(60))),
         },
     )
 
 
-def _venta_de(db: Session, venta_id: int) -> Venta:
-    hecha = db.get(Venta, venta_id)
-    if hecha is None or hecha.corrida_id is not None:
-        raise HTTPException(status_code=404, detail="Esa venta no existe.")
-    return hecha
+def _despacho_de(db: Session, despacho_id: int) -> Despacho:
+    registro = db.get(Despacho, despacho_id)
+    if registro is None or registro.corrida_id is not None:
+        raise HTTPException(status_code=404, detail="Ese despacho no existe.")
+    return registro
 
 
-@rutas.get("/ventas/{venta_id}")
-def detalle_venta(request: Request, venta_id: int, error: str = "", db: Session = Depends(sesion)):
-    hecha = _venta_de(db, venta_id)
+def _pagina_detalle_despacho(request, db, registro, error="", estado=200):
     return pagina(
         request,
-        "venta_detalle.html",
-        {"pestana": "ventas", "venta": hecha, "lineas": inventario.lineas_de(db, hecha), "error": error},
+        "despacho_detalle.html",
+        {"pestana": "costos", "despacho": registro, "lineas": inventario.lineas_de(db, registro), "error": error},
+        estado,
     )
 
 
-@rutas.post("/ventas/{venta_id}/anular")
-async def anular(request: Request, venta_id: int, db: Session = Depends(sesion)):
-    hecha = _venta_de(db, venta_id)
+@rutas.get("/despachos/{despacho_id}")
+def detalle_despacho(request: Request, despacho_id: int, db: Session = Depends(sesion)):
+    return _pagina_detalle_despacho(request, db, _despacho_de(db, despacho_id))
+
+
+@rutas.post("/despachos/{despacho_id}/anular")
+async def anular(request: Request, despacho_id: int, db: Session = Depends(sesion)):
+    registro = _despacho_de(db, despacho_id)
     motivo = str((await request.form()).get("motivo", ""))
     try:
-        inventario.anular_venta(db, hecha, motivo, ahora())
+        inventario.anular_despacho(db, registro, motivo, ahora())
     except ErrorDeOperacion as problema:
-        return pagina(
-            request,
-            "venta_detalle.html",
-            {"pestana": "ventas", "venta": hecha, "lineas": inventario.lineas_de(db, hecha), "error": str(problema)},
-            400,
-        )
-    _evaluar_despues(db, {m.id for _, m in inventario.lineas_de(db, hecha)}, ahora())
-    return RedirectResponse(f"/ventas/{venta_id}", status_code=303)
+        return _pagina_detalle_despacho(request, db, registro, str(problema), 400)
+    _evaluar_despues(db, {m.id for _, m in inventario.lineas_de(db, registro)}, ahora())
+    return RedirectResponse(f"/despachos/{despacho_id}", status_code=303)
 
 
 # ---------------------------------------------------------------- Inventario
@@ -326,6 +332,7 @@ def detalle(request: Request, medicamento_id: int, guardado: int = 0, db: Sessio
             "grafica": _grafica_existencias(db, m, momento),
             "consumo_grafica": graficas.consumo_diario(e.consumo, e.hoy),
             "historial": inventario.historial(db, m),
+            "por_servicio": consumo_por_servicio(db, m, momento),
             "pedidos_med": lineas,
             "guardado": guardado == 1,
             "cfg": configuracion(db),
@@ -387,7 +394,7 @@ async def guardar_ajuste(request: Request, medicamento_id: int, db: Session = De
 
 
 @rutas.post("/medicamentos/{medicamento_id}/pedido")
-async def pedido_manual(request: Request, medicamento_id: int, tareas: BackgroundTasks, db: Session = Depends(sesion)):
+async def pedido_manual(request: Request, medicamento_id: int, tareas_fondo: BackgroundTasks, db: Session = Depends(sesion)):
     m = medicamento_de(db, medicamento_id)
     e = evaluar(db, m, ahora())
     if e.pedido_abierto is not None:
@@ -400,7 +407,7 @@ async def pedido_manual(request: Request, medicamento_id: int, tareas: Backgroun
     pedido = pedidos.crear_pedido(db, e, ahora(), origen="manual", cantidad=cantidad)
     avisos.encolar(db, "reposicion", avisos.texto_reposicion(db, pedido), None, pedido.id, m.id, con_botones=True)
     db.commit()
-    despacho.programar(tareas)
+    tareas.programar(tareas_fondo)
     return RedirectResponse(f"/pedidos/{pedido.id}", status_code=303)
 
 
@@ -547,7 +554,7 @@ async def recibir(request: Request, pedido_id: int, db: Session = Depends(sesion
 
 
 @rutas.post("/mensajes/{mensaje_id}/reintentar")
-def reintentar(mensaje_id: int, tareas: BackgroundTasks, db: Session = Depends(sesion)):
+def reintentar(mensaje_id: int, tareas_fondo: BackgroundTasks, db: Session = Depends(sesion)):
     mensaje = db.get(Mensaje, mensaje_id)
     if mensaje is None:
         raise HTTPException(status_code=404, detail="Ese mensaje no existe.")
@@ -556,7 +563,7 @@ def reintentar(mensaje_id: int, tareas: BackgroundTasks, db: Session = Depends(s
         mensaje.intentos = 0
         mensaje.proximo_intento = ahora()
         db.commit()
-        despacho.programar(tareas)
+        tareas.programar(tareas_fondo)
     destino = f"/pedidos/{mensaje.pedido_id}" if mensaje.pedido_id and mensaje.corrida_id is None else "/configuracion#telegram"
     return RedirectResponse(destino, status_code=303)
 

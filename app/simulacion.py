@@ -1,25 +1,33 @@
-"""Simulación de una farmacia en tiempo acelerado.
+"""Simulación del Sanatorio El Roble en tiempo acelerado.
 
-Usa las mismas funciones que la operación (vender, evaluar_reposicion, recibir,
-los avisos de Telegram), pero todo lo que crea lleva `corrida_id`: nunca toca el
-inventario, el dinero ni los pedidos reales.
+Los servicios del sanatorio (Emergencia, Encamamiento, Cuidados Intensivos,
+Sala de operaciones, Traumatología y Ambulancia) piden medicamentos a la
+farmacia interna a lo largo de las 24 horas, cada uno con su propio horario:
+las rondas de encamamiento, las cirugías programadas de día, más emergencias en
+la noche y el fin de semana. Los medicamentos, cantidades y horarios son
+simulados; solo los nombres de los servicios vienen de lo que publica el
+sanatorio.
 
-Reloj. El tiempo virtual se mide en minutos de farmacia abierta (de la hora de
-apertura a la de cierre, solo los días que abre). A velocidad ×1, 1 segundo real
-son 10 minutos virtuales: un día de 12 horas dura 72 s; a ×5, unos 14 s, y una
-semana menos de dos minutos. La velocidad solo cambia el ritmo: los clientes de
-cada día salen de una semilla (escenario + número de día), así que con la misma
-semilla la corrida produce las mismas ventas, avisos y recepciones.
+Usa las mismas funciones que la operación (despachar, evaluar_reposicion,
+recibir, los avisos de Telegram), pero todo lo que crea lleva `corrida_id`:
+nunca toca el inventario, los costos ni los pedidos reales.
+
+Reloj. El tiempo virtual se mide en minutos de operación; el sanatorio opera
+24 horas. A velocidad ×1, 1 segundo real son 20 minutos virtuales: un día dura
+72 s; a ×5, unos 14 s, y una semana menos de dos minutos. La velocidad solo
+cambia el ritmo: las solicitudes de cada día salen de una semilla (escenario +
+número de día), así que con la misma semilla la corrida produce los mismos
+despachos, avisos y recepciones.
 
 El estado vive en la base, no en el navegador: refrescar o abrir otra pestaña
-no duplica ventas, recepciones ni mensajes. Cada cliente usa un identificador
-fijo como token de venta y el avance se hace con un candado.
+no duplica despachos, recepciones ni mensajes. Cada solicitud usa un
+identificador fijo como token de despacho y el avance se hace con un candado.
 
 Pausa de exposición. Cuando un medicamento llega a su punto de reorden, el reloj
 virtual se detiene en ese instante, se envía el aviso por Telegram y se espera a
-que el expositor (en el papel del encargado) pulse «Pedido realizado». Es un
-recurso para explicar el flujo: no significa que una farmacia real deje de
-vender mientras el jefe responde. La respuesta del encargado se modela como
+que el expositor (en el papel del encargado de compras) pulse «Pedido
+realizado». Es un recurso para explicar el flujo: no significa que un sanatorio
+real deje de atender mientras el encargado responde. La respuesta del encargado se modela como
 inmediata en tiempo virtual, o con la demora de gestión que se elija al crear
 la corrida. Si varios medicamentos avisan a la vez, cada aviso es una causa de
 pausa y el reloj sigue solo cuando se confirmaron todas.
@@ -49,14 +57,14 @@ from app.db import (
     Pedido,
     PedidoLinea,
     PlanDiario,
+    Despacho,
     Proveedor,
-    Venta,
     ahora,
 )
 from app.inventario import LineaPedida
 from app.planificacion import configuracion, evaluar_varios
 
-MINUTOS_POR_SEGUNDO = 10
+MINUTOS_POR_SEGUNDO = 20
 VELOCIDADES = (1, 2, 4, 5)
 MAX_EVENTOS_POR_PASO = 400
 candado = threading.RLock()
@@ -66,18 +74,36 @@ candado = threading.RLock()
 
 
 @dataclass(frozen=True)
+class Servicio:
+    nombre: str
+    icono: str
+    por_hora: tuple[float, ...]  # peso de cada hora del día (0 a 23)
+    por_dia: tuple[float, ...]  # factor de lunes a domingo
+
+
+SERVICIOS = (
+    Servicio("Emergencia", "🚨", (3, 2, 2, 2, 2, 2, 3, 4, 5, 5, 5, 5, 5, 5, 5, 5, 6, 7, 8, 8, 8, 7, 6, 4), (1, 1, 1, 1, 1.05, 1.1, 1.1)),
+    Servicio("Encamamiento", "🛏️", (1, 1, 1, 1, 1, 2, 8, 4, 1, 1, 2, 1, 2, 1, 8, 4, 1, 1, 2, 1, 2, 1, 8, 4), (1,) * 7),
+    Servicio("Cuidados Intensivos", "💓", (2, 2, 2, 2, 2, 2, 4, 3, 2, 2, 2, 2, 2, 2, 4, 3, 2, 2, 2, 2, 2, 2, 4, 3), (1,) * 7),
+    Servicio("Sala de operaciones", "🩺", (0,) * 7 + (3, 5, 6, 6, 5, 4, 5, 5, 4, 2) + (0,) * 7, (1.15, 1.15, 1.15, 1.15, 1.1, 0.5, 0.2)),
+    Servicio("Traumatología", "🦴", (0,) * 8 + (3, 4, 5, 5, 4, 3, 4, 5, 5, 4) + (0,) * 6, (1.1, 1.1, 1.1, 1.1, 1.1, 0.6, 0.3)),
+    Servicio("Ambulancia", "🚑", (1,) * 17 + (2, 2, 2, 2, 2) + (1, 1), (1, 1, 1, 1, 1.05, 1.15, 1.15)),
+)
+
+
+@dataclass(frozen=True)
 class Producto:
     nombre: str
     presentacion: str
     unidad: str
     proveedor: str
     costo: float
-    precio: float
     paquete: int
     existencia: int
     plazo: float
-    consumo: float  # unidades por día que el generador busca en promedio (no lo conoce el sistema)
-    cantidad_max: int = 2
+    consumo: float  # unidades por día que el generador busca en promedio (el sistema no lo conoce)
+    cantidad_max: int
+    reparto: tuple[tuple[str, float], ...]  # qué parte del consumo pide cada servicio
 
 
 @dataclass(frozen=True)
@@ -87,20 +113,28 @@ class Escenario:
     descripcion: str
     semilla: int
     productos: tuple[Producto, ...]
-    patron_semana: tuple[float, ...] = (1.1, 1.0, 1.0, 1.05, 1.2, 0.9, 0.65)
+    servicios: tuple[Servicio, ...] = SERVICIOS
     aumento: tuple[str, int, float] | None = None  # (nombre, desde el día, factor)
     inicio: date = date(2026, 11, 2)
 
 
 _PRODUCTOS = (
-    Producto("Ceftriaxona", "1 g", "vial", "Proveedor A", 12.5, 16.9, 10, 42, 3, 6, 2),
-    Producto("Paracetamol", "1 g/100 ml", "frasco IV", "Proveedor A", 18.0, 24.3, 12, 120, 3, 15, 3),
-    Producto("Solución salina", "0.9 % · 100 ml", "bolsa", "Proveedor A", 5.5, 7.45, 20, 260, 3, 22, 4),
-    Producto("Dexametasona", "4 mg/ml · 2 ml", "ampolla", "Proveedor B", 5.9, 8.0, 10, 95, 3, 8, 2),
-    Producto("Metoclopramida", "10 mg/2 ml", "ampolla", "Proveedor B", 4.7, 6.35, 10, 110, 3, 7, 2),
-    Producto("Salbutamol", "2.5 mg/2.5 ml", "monodosis", "Proveedor B", 4.1, 5.55, 20, 150, 3, 10, 3),
-    Producto("Insulina cristalina", "U-100 · 10 ml", "vial", "Proveedor C", 88.0, 118.8, 1, 16, 4, 1.2, 1),
-    Producto("Adrenalina (epinefrina)", "1 mg/ml · 1 ml", "ampolla", "Proveedor C", 7.5, 10.15, 10, 22, 3, 1.5, 2),
+    Producto("Ceftriaxona", "1 g", "vial", "Proveedor A", 12.5, 10, 42, 3, 6, 2,
+             (("Encamamiento", 0.45), ("Sala de operaciones", 0.25), ("Cuidados Intensivos", 0.2), ("Emergencia", 0.1))),
+    Producto("Paracetamol", "1 g/100 ml", "frasco IV", "Proveedor A", 18.0, 12, 190, 3, 15, 3,
+             (("Encamamiento", 0.35), ("Emergencia", 0.3), ("Traumatología", 0.2), ("Sala de operaciones", 0.15))),
+    Producto("Solución salina", "0.9 % · 100 ml", "bolsa", "Proveedor A", 5.5, 20, 330, 3, 22, 4,
+             (("Emergencia", 0.35), ("Encamamiento", 0.25), ("Cuidados Intensivos", 0.15), ("Sala de operaciones", 0.15), ("Ambulancia", 0.1))),
+    Producto("Dexametasona", "4 mg/ml · 2 ml", "ampolla", "Proveedor B", 5.9, 10, 95, 3, 8, 2,
+             (("Emergencia", 0.45), ("Encamamiento", 0.25), ("Traumatología", 0.2), ("Cuidados Intensivos", 0.1))),
+    Producto("Metoclopramida", "10 mg/2 ml", "ampolla", "Proveedor B", 4.7, 10, 110, 3, 7, 2,
+             (("Sala de operaciones", 0.4), ("Emergencia", 0.3), ("Encamamiento", 0.3))),
+    Producto("Salbutamol", "2.5 mg/2.5 ml", "monodosis", "Proveedor B", 4.1, 20, 150, 3, 10, 3,
+             (("Emergencia", 0.6), ("Encamamiento", 0.25), ("Cuidados Intensivos", 0.15))),
+    Producto("Insulina cristalina", "U-100 · 10 ml", "vial", "Proveedor C", 88.0, 1, 22, 4, 1.2, 1,
+             (("Encamamiento", 0.6), ("Cuidados Intensivos", 0.4))),
+    Producto("Adrenalina (epinefrina)", "1 mg/ml · 1 ml", "ampolla", "Proveedor C", 7.5, 10, 30, 3, 1.5, 2,
+             (("Emergencia", 0.35), ("Cuidados Intensivos", 0.3), ("Ambulancia", 0.25), ("Sala de operaciones", 0.1))),
 )
 
 ESCENARIOS = {
@@ -108,69 +142,85 @@ ESCENARIOS = {
     for e in (
         Escenario(
             "base",
-            "Farmacia en un mes normal",
-            "Ocho medicamentos, días altos, bajos y sin ventas. Se ve el primer aviso, la confirmación por Telegram, "
-            "el consumo de parte de la reserva mientras corre L y la recepción a tiempo.",
+            "Sanatorio en un mes normal",
+            "Seis servicios piden ocho medicamentos a la farmacia interna las 24 horas, con días altos, bajos y sin "
+            "consumo de algunos productos. Se ve el primer aviso, la confirmación por Telegram, el consumo de parte de "
+            "la reserva mientras corre L y la recepción a tiempo.",
             2026,
             _PRODUCTOS,
         ),
         Escenario(
             "aumento",
-            "Aumento de demanda de salbutamol",
-            "Igual que el mes normal, pero desde el día 9 el salbutamol se vende 2.3 veces más. "
-            "Se ve cómo la estimación se actualiza, el aviso de aumento y que puede haber faltantes.",
+            "Aumento de casos respiratorios (salbutamol)",
+            "Igual que el mes normal, pero desde el día 15 los servicios piden 2.3 veces más salbutamol. "
+            "Se ve cómo la estimación se actualiza, el aviso de aumento y que puede faltar existencia.",
             2026,
             _PRODUCTOS,
-            aumento=("Salbutamol", 9, 2.3),
+            aumento=("Salbutamol", 14, 2.3),
         ),
     )
 }
 
 
 @dataclass(frozen=True)
-class Cliente:
+class Solicitud:
     minuto: float  # minuto dentro del día
     numero: int
+    servicio: str
     compras: tuple[tuple[int, int], ...]  # (índice de producto, cantidad)
 
 
-def clientes_del_dia(escenario: Escenario, semilla: int, dia: int, minutos_dia: int, dia_semana: int) -> list[Cliente]:
-    """Clientes de un día, siempre los mismos para la misma semilla y el mismo día."""
-    azar = random.Random(f"salvamed:{semilla}:{escenario.clave}:{dia}")
-    factor = escenario.patron_semana[dia_semana] * math.exp(azar.gauss(0, 0.18))
+def _hora(azar: random.Random, pesos: tuple[float, ...]) -> int:
+    r = azar.random() * sum(pesos)
+    for hora, peso in enumerate(pesos):
+        r -= peso
+        if r <= 0 and peso > 0:
+            return hora
+    return max(h for h, p in enumerate(pesos) if p > 0)
+
+
+def solicitudes_del_dia(escenario: Escenario, semilla: int, dia: int, minutos_dia: int, dia_semana: int) -> list[Solicitud]:
+    """Solicitudes de los servicios en un día, siempre las mismas para la misma semilla y el mismo día."""
+    azar = random.Random(f"salvamed:{semilla}:{dia}")  # igual en todos los escenarios: así se pueden comparar
+    factor = math.exp(azar.gauss(0, 0.12))
     tipo = azar.random()
     if tipo < 0.08:
-        factor *= 0.45  # día flojo
+        factor *= 0.7  # día tranquilo
     elif tipo > 0.92:
-        factor *= 1.5  # día alto
-    pesos = []
-    for p in escenario.productos:
-        media_cantidad = (1 + p.cantidad_max) / 2
-        peso = p.consumo / media_cantidad
-        if escenario.aumento and escenario.aumento[0] == p.nombre and dia >= escenario.aumento[1]:
-            peso *= escenario.aumento[2]
-        pesos.append(peso)
-    articulos_por_cliente = 1.45
-    esperado = sum(pesos) / articulos_por_cliente * factor
-    numero = _poisson(azar, esperado)
-    clientes = []
-    for i in range(numero):
-        k = 1 + (azar.random() < 0.35) + (azar.random() < 0.1)
-        elegidos = []
-        disponibles = list(range(len(pesos)))
-        for _ in range(min(k, len(disponibles))):
-            total = sum(pesos[j] for j in disponibles)
-            r = azar.random() * total
-            for j in disponibles:
-                r -= pesos[j]
-                if r <= 0:
-                    break
-            disponibles.remove(j)
-            cantidad = 1 + int(azar.random() ** 1.6 * escenario.productos[j].cantidad_max)
-            elegidos.append((j, min(cantidad, escenario.productos[j].cantidad_max)))
-        clientes.append(Cliente(round(azar.random() * (minutos_dia - 1), 3), i + 1, tuple(elegidos)))
-    clientes.sort(key=lambda c: c.minuto)
-    return clientes
+        factor *= 1.35  # día con muchos ingresos
+    escala = minutos_dia / 1440
+    lineas = []
+    for servicio in escenario.servicios:
+        f = factor * servicio.por_dia[dia_semana]
+        for j, p in enumerate(escenario.productos):
+            parte = dict(p.reparto).get(servicio.nombre, 0)
+            if not parte:
+                continue
+            media = p.consumo * parte * f
+            if escenario.aumento and escenario.aumento[0] == p.nombre and dia >= escenario.aumento[1]:
+                media *= escenario.aumento[2]
+            # Cada servicio y medicamento tiene su propia secuencia: el aumento de uno no cambia a los demás.
+            propio = random.Random(f"salvamed:{semilla}:{dia}:{servicio.nombre}:{p.nombre}")
+            for _ in range(_poisson(propio, media / ((1 + p.cantidad_max) / 2))):
+                minuto = (_hora(propio, servicio.por_hora) * 60 + propio.random() * 59.9) * escala
+                cantidad = min(1 + int(propio.random() ** 1.6 * p.cantidad_max), p.cantidad_max)
+                lineas.append((servicio.nombre, round(minuto, 3), j, cantidad))
+    lineas.sort()
+    solicitudes, actual = [], None
+    for nombre, minuto, j, cantidad in lineas:
+        if (
+            actual is not None
+            and actual[0] == nombre
+            and minuto - actual[1] <= 20 * escala
+            and len(actual[2]) < 3
+            and j not in dict(actual[2])
+        ):
+            actual[2].append((j, cantidad))
+            continue
+        actual = (nombre, minuto, [(j, cantidad)])
+        solicitudes.append(actual)
+    solicitudes.sort(key=lambda x: (x[1], x[0]))
+    return [Solicitud(minuto, i + 1, nombre, tuple(compras)) for i, (nombre, minuto, compras) in enumerate(solicitudes)]
 
 
 def _poisson(azar: random.Random, media: float) -> int:
@@ -282,7 +332,6 @@ def crear_corrida(db: Session, clave: str = "base", semilla: int | None = None, 
                     "unidad": p.unidad,
                     "proveedor_id": proveedores[p.proveedor].id,
                     "costo_compra": p.costo,
-                    "precio_venta": p.precio,
                     "unidades_paquete": p.paquete,
                     "tiempo_entrega": p.plazo,
                     "origen": "simulacion",
@@ -347,7 +396,7 @@ def avanzar(db: Session, c: Corrida, hasta: float, detener_en_evento: bool = Fal
     while c.estado == "activa" and not c.causas and procesados < limite:
         dia = c.dia_cerrado + 1
         fecha = fecha_del_dia(c, dia)
-        clientes = clientes_del_dia(escenario, c.semilla, dia, md, fecha.weekday())
+        clientes = solicitudes_del_dia(escenario, c.semilla, dia, md, fecha.weekday())
         siguiente_cliente = dia * md + clientes[c.evento_siguiente].minuto if c.evento_siguiente < len(clientes) else None
         cierre = (dia + 1) * md
         llegada = _siguiente_llegada(db, c)
@@ -383,25 +432,33 @@ def _medicamentos(db: Session, c: Corrida) -> list[Medicamento]:
     return [db.get(Medicamento, i) for i in c.parametros["meds"]]
 
 
-def _atender(db: Session, c: Corrida, cliente: Cliente, dia: int, minuto: float) -> bool:
+def _atender(db: Session, c: Corrida, solicitud: Solicitud, dia: int, minuto: float) -> bool:
     meds = _medicamentos(db, c)
     momento = momento_de(c, minuto)
     lineas, faltantes, items = [], [], []
-    for indice, cantidad in cliente.compras:
+    for indice, cantidad in solicitud.compras:
         m = meds[indice]
-        vendible = min(cantidad, m.existencia)
-        if vendible > 0:
-            lineas.append(LineaPedida(m.id, vendible))
-            items.append([m.id, vendible])
-        if vendible < cantidad:
-            faltantes.append((m, cantidad - vendible))
+        entregable = min(cantidad, m.existencia)
+        if entregable > 0:
+            lineas.append(LineaPedida(m.id, entregable))
+            items.append([m.id, entregable])
+        if entregable < cantidad:
+            faltantes.append((m, cantidad - entregable))
     if lineas:
-        venta = inventario.vender(db, lineas, f"sim{c.id}-{dia}-{cliente.numero}", momento, corrida_id=c.id, usuario="Cliente simulado")
-        _evento(db, c, minuto, "venta", cantidad=sum(n for _, n in items), texto=f"Cliente {cliente.numero}", items=items, total=venta.total, cliente=cliente.numero)
+        despacho = inventario.despachar(
+            db, solicitud.servicio, lineas, f"sim{c.id}-{dia}-{solicitud.numero}", momento, corrida_id=c.id, usuario="Servicio simulado"
+        )
+        _evento(
+            db, c, minuto, "despacho", cantidad=sum(n for _, n in items), texto=solicitud.servicio,
+            items=items, costo=despacho.costo_total, servicio=solicitud.servicio, solicitud=solicitud.numero,
+        )
     for m, falta in faltantes:
         c.faltantes += falta
-        _evento(db, c, minuto, "faltante", m.id, falta, texto=f"No alcanzó {m.nombre}: faltaron {falta} {m.unidad}")
-    return _revisar_varios(db, c, [meds[indice] for indice, _ in cliente.compras], minuto, momento)
+        _evento(
+            db, c, minuto, "faltante", m.id, falta,
+            texto=f"{solicitud.servicio} pidió {m.nombre} y no alcanzó: faltaron {falta} {m.unidad}", servicio=solicitud.servicio,
+        )
+    return _revisar_varios(db, c, [meds[indice] for indice, _ in solicitud.compras], minuto, momento)
 
 
 def _revisar(db: Session, c: Corrida, m: Medicamento, minuto: float, momento: datetime) -> bool:
@@ -409,7 +466,17 @@ def _revisar(db: Session, c: Corrida, m: Medicamento, minuto: float, momento: da
 
 
 def _revisar_varios(db: Session, c: Corrida, meds: list[Medicamento], minuto: float, momento: datetime) -> bool:
+    antes = {m.id: m.ultimo_aviso_aumento for m in meds}
     evaluaciones, nuevos = pedidos.evaluar_grupo(db, meds, momento)
+    hubo_aumento = False
+    for m in meds:
+        e = evaluaciones[m.id]
+        if e.aumento and m.ultimo_aviso_aumento != antes[m.id]:
+            hubo_aumento = True
+            _evento(
+                db, c, minuto, "aumento", m.id,
+                texto=f"Aviso de aumento: {m.nombre} pasó de {e.aumento.anterior:.1f} a {e.aumento.reciente:.1f} por día (z = {e.aumento.z:.1f}). Nuevo R {e.plan.R if e.plan else 0:.1f}.",
+            )
     for nuevo in nuevos:
         c.causas = list(c.causas or []) + [nuevo.id]
         for linea, m in pedidos.lineas_de(db, nuevo):
@@ -420,7 +487,7 @@ def _revisar_varios(db: Session, c: Corrida, meds: list[Medicamento], minuto: fl
                 pedido=nuevo.id,
             )
         _evento(db, c, minuto, "pausa", texto=f"Reloj en pausa de exposición: esperando «Pedido realizado» del pedido #{nuevo.id}.", pedido=nuevo.id)
-    return bool(nuevos)
+    return bool(nuevos) or hubo_aumento
 
 
 def _recibir(db: Session, c: Corrida, pedido_id: int, minuto: float) -> bool:
@@ -441,10 +508,16 @@ def _cerrar_dia(db: Session, c: Corrida, dia: int, minuto: float, clientes: int)
     c.dia_cerrado = dia
     c.evento_siguiente = 0
     inicio = momento_de(c, dia * _minutos_dia(c))
-    vendido = db.scalar(
-        select(func.coalesce(func.sum(Venta.total), 0)).where(Venta.corrida_id == c.id, Venta.fecha >= inicio, Venta.fecha < momento_de(c, minuto))
+    consumido = db.scalar(
+        select(func.coalesce(func.sum(Despacho.costo_total), 0)).where(
+            Despacho.corrida_id == c.id, Despacho.fecha >= inicio, Despacho.fecha < momento_de(c, minuto)
+        )
     )
-    _evento(db, c, minuto, "cierre", texto=f"Cierre del día {dia + 1}: {clientes} clientes, ventas Q {vendido:,.2f}. Se actualiza la estimación con el día completo.", dia=dia + 1, clientes=clientes, ventas=float(vendido))
+    _evento(
+        db, c, minuto, "cierre",
+        texto=f"Fin del día {dia + 1}: {clientes} solicitudes de los servicios, consumo Q {consumido:,.2f}. La estimación se actualiza con el día completo.",
+        dia=dia + 1, solicitudes=clientes, consumido=float(consumido),
+    )
     return _revisar_varios(db, c, _medicamentos(db, c), minuto, momento_de(c, minuto))
 
 
@@ -569,7 +642,6 @@ def estado(db: Session, c: Corrida, desde_evento: int = 0, seleccionado: int | N
                 "hoy": e.consumo.hoy,
                 "pendientes": e.pendientes,
                 "camino": abiertos.get(m.id),
-                "precio": m.precio_venta,
             }
         )
     eventos = list(
@@ -613,15 +685,16 @@ def estado(db: Session, c: Corrida, desde_evento: int = 0, seleccionado: int | N
             for ev in eventos
         ],
         "dinero": {
-            "ventas": resumen.ventas,
-            "costo": resumen.costo_ventas,
-            "margen": resumen.margen_bruto,
+            "consumido": resumen.consumido,
+            "por_servicio": [list(x) for x in resumen.por_servicio],
+            "unidades": resumen.unidades,
             "compras": resumen.compras_recibidas,
             "compromisos": resumen.compromisos,
             "por_gestionar": resumen.por_gestionar,
-            "numero_ventas": resumen.numero_ventas,
+            "numero_despachos": resumen.numero_despachos,
             "faltantes": c.faltantes,
         },
+        "servicios": [{"nombre": x.nombre, "icono": x.icono} for x in ESCENARIOS[c.escenario].servicios],
         "pausa": pausa,
         "seleccionado": seleccionado,
         "serie": serie(db, c, seleccionado),
@@ -687,9 +760,7 @@ def serie(db: Session, c: Corrida, medicamento_id: int) -> dict:
 def corridas_anteriores(db: Session, limite: int = 8) -> list[dict]:
     resultado = []
     for c in db.scalars(select(Corrida).order_by(Corrida.id.desc()).limit(limite)):
-        resumen_ventas = db.execute(
-            select(func.coalesce(func.sum(Venta.total), 0), func.count(Venta.id)).where(Venta.corrida_id == c.id)
-        ).one()
+        consumido = db.scalar(select(func.coalesce(func.sum(Despacho.costo_total), 0)).where(Despacho.corrida_id == c.id))
         numero_pedidos = db.scalar(select(func.count()).select_from(Pedido).where(Pedido.corrida_id == c.id))
         resultado.append(
             {
@@ -698,7 +769,7 @@ def corridas_anteriores(db: Session, limite: int = 8) -> list[dict]:
                 "semilla": c.semilla,
                 "demora": (c.demora_gestion or 0) / 60,
                 "dias": c.dia_cerrado + 1,
-                "ventas": float(resumen_ventas[0]),
+                "consumido": float(consumido),
                 "pedidos": numero_pedidos,
                 "faltantes": c.faltantes,
                 "estado": c.estado,

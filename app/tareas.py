@@ -26,7 +26,7 @@ def programar(tareas: BackgroundTasks) -> None:
 
 
 def reevaluar_operacion() -> None:
-    """Las ventas de ayer cambian μD y R hoy aunque nadie venda: se revisa cada cierto tiempo."""
+    """Los despachos de ayer cambian μD y R hoy aunque nadie despache: se revisa cada cierto tiempo."""
     from app import pedidos
 
     with Session(motor) as db:

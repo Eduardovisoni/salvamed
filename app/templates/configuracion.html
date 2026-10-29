@@ -19,7 +19,7 @@
     <p class="sutil grupo__descripcion">{{ grupo.descripcion }}</p>
     {% if loop.first %}
     <div class="dias-semana{% if errores.get('dias_semana') %} campo--error{% endif %}">
-      <span class="campo__etiqueta">Días que abre</span>
+      <span class="campo__etiqueta">Días de operación</span>
       {% for nombre in dias %}
       <label class="casilla"><input type="checkbox" name="dia_{{ loop.index0 }}" value="1" {% if cfg.dias_semana[loop.index0] == "1" %}checked{% endif %}> {{ nombre }}</label>
       {% endfor %}
@@ -31,6 +31,15 @@
     </div>
   </fieldset>
   {% endfor %}
+  <fieldset class="grupo">
+    <legend>Servicios que reciben medicamentos</legend>
+    <p class="sutil grupo__descripcion">Uno por línea. Lista inicial tomada de los servicios que publica el sanatorio (ficha de TuSalud y Facebook): revísala con la farmacia.</p>
+    <div class="campo{% if errores.get('servicios') %} campo--error{% endif %}">
+      <label for="servicios">Servicios</label>
+      <textarea class="campo__entrada" id="servicios" name="servicios" rows="7">{{ valores.get("servicios", "") }}</textarea>
+      {% if errores.get('servicios') %}<span class="campo__error">{{ errores.servicios }}</span>{% endif %}
+    </div>
+  </fieldset>
   <div class="acciones"><button class="boton boton--primario" type="submit">Guardar configuración</button></div>
 </form>
 
@@ -72,13 +81,13 @@
 
 <section class="panel" id="datos">
   <h2>Datos</h2>
-  <p>La operación arranca vacía: no se siembran ventas ni historia ficticia. La demostración se carga solo con este botón.</p>
+  <p>La operación arranca vacía: no se siembran despachos ni historia ficticia. La demostración se carga solo con este botón.</p>
   <form method="post" action="/configuracion/demo" data-confirmar="Se agregará el catálogo de demostración (30 medicamentos simulados) a la operación. ¿Continuar?" data-una-vez>
     <button class="boton {% if catalogo_vacio %}boton--primario{% endif %}" type="submit">Cargar catálogo de demostración</button>
   </form>
   <p class="sutil">
-    Usa <code>datos/SALVAMED en orden.csv</code>. Solo los nombres de los medicamentos están contextualizados en El Roble; existencias, plazos,
-    totales semanales y precios son simulados. Si un medicamento ya existe, no se duplica ni cambia su existencia.
+    Usa <code>datos/SALVAMED en orden.csv</code>. Solo los nombres de los medicamentos están contextualizados en el sanatorio; existencias, plazos,
+    totales semanales y costos son simulados. Si un medicamento ya existe, no se duplica ni cambia su existencia.
   </p>
   {% if respaldo %}
   <p class="sutil">Respaldo de la versión anterior en esta base: {% for tabla, filas in respaldo.items() %}<code>{{ tabla }}</code> ({{ filas }} filas){% if not loop.last %}, {% endif %}{% endfor %}. No se modifica.</p>

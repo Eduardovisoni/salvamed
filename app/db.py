@@ -1,8 +1,11 @@
 """Tablas de SALVAMED.
 
+SALVAMED lleva la farmacia interna del Sanatorio El Roble: los medicamentos salen
+por despachos a los servicios (Emergencia, Encamamiento, ...), sin datos de pacientes.
+
 Operación y simulación comparten las mismas tablas y las mismas reglas: lo que
 distingue a la simulación es `corrida_id`. En operación siempre es NULL, así que
-ninguna corrida puede tocar el inventario, el dinero ni los pedidos reales.
+ninguna corrida puede tocar el inventario, los costos ni los pedidos reales.
 
 Las tablas de la versión 1 (`medicamentos` y `movimientos`) no se tocan: quedan
 como respaldo en la misma base. Ver app/migraciones.py.
@@ -81,6 +84,16 @@ class Base(DeclarativeBase):
     pass
 
 
+# Servicios publicados por el sanatorio (ficha de TuSalud y página de Facebook, octubre de 2026).
+SERVICIOS_INICIALES = "\n".join(
+    ("Emergencia", "Encamamiento", "Cuidados Intensivos", "Sala de operaciones", "Traumatología", "Ambulancia")
+)
+
+
+def lista_de_servicios(texto: str) -> list[str]:
+    return [s.strip() for s in (texto or "").splitlines() if s.strip()]
+
+
 class Configuracion(Base):
     """Parámetros administrativos generales. Siempre hay una sola fila (id = 1)."""
 
@@ -89,8 +102,9 @@ class Configuracion(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     dias_operacion_anio: Mapped[int] = mapped_column(Integer, default=365)
     dias_semana: Mapped[str] = mapped_column(String(7), default="1111111")
-    hora_apertura: Mapped[int] = mapped_column(Integer, default=8)
-    hora_cierre: Mapped[int] = mapped_column(Integer, default=20)
+    hora_apertura: Mapped[int] = mapped_column(Integer, default=0)
+    hora_cierre: Mapped[int] = mapped_column(Integer, default=24)
+    servicios: Mapped[str] = mapped_column(String(600), default=SERVICIOS_INICIALES)
     nivel_servicio: Mapped[float] = mapped_column(Float, default=95)
     tasa_mantenimiento: Mapped[float] = mapped_column(Float, default=0.25)
     costo_pedido: Mapped[float] = mapped_column(Float, default=35)
@@ -136,7 +150,6 @@ class Medicamento(Base):
         ForeignKey("proveedores.id", ondelete="SET NULL"), nullable=True
     )
     costo_compra: Mapped[float | None] = mapped_column(Float, nullable=True)
-    precio_venta: Mapped[float | None] = mapped_column(Float, nullable=True)
     unidades_paquete: Mapped[int] = mapped_column(Integer, default=1)
     existencia: Mapped[int] = mapped_column(Integer, default=0)
     costo_promedio: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -149,7 +162,7 @@ class Medicamento(Base):
     dias_operacion_anio: Mapped[int | None] = mapped_column(Integer, nullable=True)
     capacidad_maxima: Mapped[int | None] = mapped_column(Integer, nullable=True)
     vencimiento_proximo: Mapped[date | None] = mapped_column(Date, nullable=True)
-    # Desde qué día cuentan como observadas las ventas registradas.
+    # Desde qué día cuentan como observados los despachos registrados.
     observado_desde: Mapped[date | None] = mapped_column(Date, nullable=True)
     origen: Mapped[str] = mapped_column(String(20), default="registro")
     activo: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -164,7 +177,7 @@ class Medicamento(Base):
 
 # Tipos de movimiento. La cantidad lleva signo: positiva entra, negativa sale.
 APERTURA = "apertura"
-VENTA = "venta"
+DESPACHO = "despacho"
 RECEPCION = "recepcion"
 AJUSTE = "ajuste"
 ANULACION = "anulacion"
@@ -182,8 +195,7 @@ class Movimiento(Base):
     cantidad: Mapped[int] = mapped_column(Integer)
     existencia_despues: Mapped[int] = mapped_column(Integer)
     costo_unitario: Mapped[float | None] = mapped_column(Float, nullable=True)
-    precio_unitario: Mapped[float | None] = mapped_column(Float, nullable=True)
-    venta_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    despacho_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     pedido_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     referencia_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     nota: Mapped[str] = mapped_column(String(200), default="")
@@ -191,32 +203,34 @@ class Movimiento(Base):
     fecha: Mapped[datetime] = mapped_column(FechaUTC, default=ahora, index=True)
 
 
-class Venta(Base):
-    __tablename__ = "ventas"
+class Despacho(Base):
+    """Entrega de la farmacia interna a un servicio. No guarda datos de pacientes."""
+
+    __tablename__ = "despachos"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     corrida_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
     token: Mapped[str] = mapped_column(String(64), unique=True)
+    servicio: Mapped[str] = mapped_column(String(60), index=True)
     fecha: Mapped[datetime] = mapped_column(FechaUTC, default=ahora, index=True)
-    total: Mapped[float] = mapped_column(Float, default=0)
     costo_total: Mapped[float] = mapped_column(Float, default=0)
-    estado: Mapped[str] = mapped_column(String(12), default="confirmada")
-    anulada_en: Mapped[datetime | None] = mapped_column(FechaUTC, nullable=True)
+    estado: Mapped[str] = mapped_column(String(12), default="confirmado")
+    nota: Mapped[str] = mapped_column(String(200), default="")
+    anulado_en: Mapped[datetime | None] = mapped_column(FechaUTC, nullable=True)
     motivo_anulacion: Mapped[str] = mapped_column(String(200), default="")
 
 
-class VentaLinea(Base):
-    __tablename__ = "venta_lineas"
+class DespachoLinea(Base):
+    __tablename__ = "despacho_lineas"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    venta_id: Mapped[int] = mapped_column(ForeignKey("ventas.id", ondelete="CASCADE"), index=True)
+    despacho_id: Mapped[int] = mapped_column(ForeignKey("despachos.id", ondelete="CASCADE"), index=True)
     medicamento_id: Mapped[int] = mapped_column(
         ForeignKey("catalogo_medicamentos.id", ondelete="CASCADE"), index=True
     )
     cantidad: Mapped[int] = mapped_column(Integer)
-    precio_unitario: Mapped[float] = mapped_column(Float)
     costo_unitario: Mapped[float | None] = mapped_column(Float, nullable=True)
-    subtotal: Mapped[float] = mapped_column(Float)
+    costo: Mapped[float] = mapped_column(Float, default=0)
 
 
 # Estados de un pedido.

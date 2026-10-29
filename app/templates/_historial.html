@@ -1,4 +1,4 @@
-{% set tipos = {"apertura": "Apertura", "venta": "Venta", "recepcion": "Recepción", "ajuste": "Ajuste", "anulacion": "Anulación"} %}
+{% set tipos = {"apertura": "Apertura", "despacho": "Despacho", "recepcion": "Recepción", "ajuste": "Ajuste", "anulacion": "Anulación"} %}
 {% if historial %}
 <div class="tabla-envoltura tabla-envoltura--plana">
   <table class="tabla tabla--compacta">
@@ -11,7 +11,7 @@
         <td class="num">{% if mv.cantidad > 0 %}+{% else %}−{% endif %}{{ mv.cantidad | abs }}</td>
         <td class="num">{{ mv.existencia_despues }}</td>
         <td class="sutil">
-          {% if mv.venta_id %}<a href="/ventas/{{ mv.venta_id }}">Venta #{{ mv.venta_id }}</a> {% endif %}
+          {% if mv.despacho_id and not mv.corrida_id %}<a href="/despachos/{{ mv.despacho_id }}">Despacho #{{ mv.despacho_id }}</a> {% endif %}
           {% if mv.pedido_id %}<a href="/pedidos/{{ mv.pedido_id }}">Pedido #{{ mv.pedido_id }}</a> {% endif %}
           {{ mv.nota }}
         </td>

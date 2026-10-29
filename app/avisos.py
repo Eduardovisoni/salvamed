@@ -1,7 +1,7 @@
 """Textos de los avisos y bandeja de salida.
 
 Un aviso se guarda primero en la tabla `mensajes` y después se envía (ver
-app/telegram.py). Si Telegram falla, la venta o el pedido no se deshacen: el
+app/telegram.py). Si Telegram falla, el despacho o el pedido no se deshacen: el
 mensaje queda con su estado, sus intentos y el error para reintentarlo.
 """
 
@@ -21,8 +21,8 @@ def _n(valor: float | None, decimales: int = 1) -> str:
 
 def _encabezado(corrida_id) -> str:
     if corrida_id is None:
-        return "🏥 SALVAMED · Operación"
-    return f"🧪 SALVAMED · SIMULACIÓN (corrida #{corrida_id}) — no es inventario real"
+        return "🏥 SALVAMED · Sanatorio El Roble (farmacia interna)"
+    return f"🧪 SALVAMED · SIMULACIÓN del sanatorio (corrida #{corrida_id}) — no es inventario real"
 
 
 def texto_reposicion(db: Session, pedido: Pedido, evaluaciones: dict | None = None) -> str:
@@ -70,7 +70,7 @@ def texto_aumento(e) -> str:
             f"Proyección anual D: {_n(p.D, 0)}",
             f"Nuevo R: {_n(p.R)} · IS: {_n(p.IS)} · EOQ: {_n(p.Q, 2)} → sugerido {e.sugerida}",
         ]
-    partes.append("Son estimaciones con las ventas registradas; no indican la causa del aumento.")
+    partes.append("Son estimaciones con los despachos registrados; no indican la causa del aumento.")
     return "\n".join(partes)
 
 

@@ -4,7 +4,7 @@
 <div class="titulo-pagina">
   <div>
     <h1>Inventario</h1>
-    <p class="sutil">Cuándo pedir (R) y cuánto pedir (Q) de cada medicamento. μD y σD salen de las ventas de los últimos {{ cfg.ventana_dias }} días completos.</p>
+    <p class="sutil">Cuándo pedir (R) y cuánto pedir (Q) de cada medicamento. μD y σD salen de lo despachado a los servicios en los últimos {{ cfg.ventana_dias }} días completos.</p>
   </div>
   <div class="acciones">
     <a class="boton" href="/importar">Importar</a>
@@ -35,7 +35,7 @@
         <th>Medicamento</th>
         <th class="num">Existencia</th>
         <th class="num" title="Pedidos realizados que faltan por recibir">En camino</th>
-        <th class="num" title="Promedio de ventas por día completo">Consumo/día <span class="sin-mayus">μD</span></th>
+        <th class="num" title="Promedio de lo despachado por día completo">Consumo/día <span class="sin-mayus">μD</span></th>
         <th class="num" title="R = μD·L + Z·σL">Punto de reorden (R)</th>
         <th class="num" title="IS = Z·σL">Inv. de seguridad</th>
         <th class="num" title="EOQ redondeada a paquetes completos">Pedir</th>
@@ -74,7 +74,7 @@
           {% endif %}
           {% if e.riesgo_agotamiento %}<span class="sutil bloque texto-pedir">Riesgo de agotarse antes de la entrega</span>{% endif %}
         </td>
-        <td><a class="boton boton--chico" href="/?agregar={{ e.m.id }}">Vender</a></td>
+        <td><a class="boton boton--chico" href="/?agregar={{ e.m.id }}">Despachar</a></td>
       </tr>
       {% endfor %}
     </tbody>
@@ -83,7 +83,7 @@
 </div>
 <p class="sutil nota-pie">
   La posición de inventario (existencia + en camino) se compara con R. Un aviso sin confirmar no cuenta como mercancía comprada.
-  Con pocos días de ventas la estimación es provisional; las ventas que no se hicieron por falta de existencia no quedan registradas.
+  Con pocos días de despachos la estimación es provisional; lo que un servicio necesitó y no se pudo despachar por falta de existencia no queda registrado.
 </p>
 {% else %}
 <div class="vacio">
