@@ -319,7 +319,7 @@
     var t = porId(s.medicamento_id);
     $("grafica-titulo").textContent = "Existencias de " + (t ? t.nombre + " " + t.presentacion : "") + " en el tiempo";
     var svg = $("grafica");
-    var ancho = 900, alto = 260, margen = 34;
+    var ancho = 900, alto = 210, margen = 34;
     var md = s.minutos_dia;
     var fin = Math.max(s.ahora, md * 5) + md * 0.3;
     var tope = 1;

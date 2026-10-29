@@ -79,14 +79,31 @@
   </section>
 
   <div class="sim-rejilla">
-    <section class="panel sim-escena">
-      <div class="sim-tienda" id="tienda">
-        <ul class="sim-servicios" id="servicios" aria-label="Servicios del sanatorio"></ul>
-        <div class="sim-pasillo" id="pasillo" aria-hidden="true"></div>
-        <div class="sim-caja"><span aria-hidden="true">💊</span> Farmacia interna<small id="caja-total"></small></div>
-      </div>
-      <div class="sim-estantes" id="estantes"></div>
-    </section>
+    <div class="sim-principal">
+      <section class="panel sim-escena">
+        <div class="sim-tienda" id="tienda">
+          <ul class="sim-servicios" id="servicios" aria-label="Servicios del sanatorio"></ul>
+          <div class="sim-pasillo" id="pasillo" aria-hidden="true"></div>
+          <div class="sim-caja"><span aria-hidden="true">💊</span> Farmacia interna<small id="caja-total"></small></div>
+        </div>
+        <div class="sim-estantes" id="estantes"></div>
+      </section>
+      <section class="panel sim-grafica__panel">
+        <div class="sim-grafica__cabeza">
+          <h2 id="grafica-titulo">Existencias en el tiempo</h2>
+          <span class="sutil">Elige un medicamento en los estantes para verlo aquí.</span>
+        </div>
+        <svg id="grafica" class="sim-grafica" viewBox="0 0 900 210" preserveAspectRatio="none" role="img" aria-label="Existencia, punto de reorden e inventario de seguridad en el tiempo"></svg>
+        <div class="grafica__leyenda">
+          <span><i class="grafica__muestra grafica__muestra--existencia"></i>Existencia</span>
+          <span><i class="grafica__muestra grafica__muestra--r"></i>R vigente cada día</span>
+          <span><i class="grafica__muestra grafica__muestra--is"></i>Inventario de seguridad</span>
+          <span><i class="grafica__muestra grafica__muestra--aviso"></i>Aviso</span>
+          <span><i class="grafica__muestra grafica__muestra--pedido"></i>Pedido realizado</span>
+          <span><i class="grafica__muestra grafica__muestra--recepcion"></i>Recepción</span>
+        </div>
+      </section>
+    </div>
 
     <aside class="sim-lado">
       <section class="panel">
@@ -99,22 +116,6 @@
       </section>
     </aside>
   </div>
-
-  <section class="panel">
-    <div class="sim-grafica__cabeza">
-      <h2 id="grafica-titulo">Existencias en el tiempo</h2>
-      <span class="sutil">Elige un medicamento en los estantes para verlo aquí.</span>
-    </div>
-    <svg id="grafica" class="sim-grafica" viewBox="0 0 900 260" preserveAspectRatio="none" role="img" aria-label="Existencia, punto de reorden e inventario de seguridad en el tiempo"></svg>
-    <div class="grafica__leyenda">
-      <span><i class="grafica__muestra grafica__muestra--existencia"></i>Existencia</span>
-      <span><i class="grafica__muestra grafica__muestra--r"></i>R vigente cada día</span>
-      <span><i class="grafica__muestra grafica__muestra--is"></i>Inventario de seguridad</span>
-      <span><i class="grafica__muestra grafica__muestra--aviso"></i>Aviso</span>
-      <span><i class="grafica__muestra grafica__muestra--pedido"></i>Pedido realizado</span>
-      <span><i class="grafica__muestra grafica__muestra--recepcion"></i>Recepción</span>
-    </div>
-  </section>
 </div>
 {% endif %}
 
@@ -137,5 +138,5 @@
 {% endblock %}
 
 {% block scripts %}
-{% if corrida %}<script src="/static/simulacion.js?v=3"></script>{% endif %}
+{% if corrida %}<script src="/static/simulacion.js?v=4"></script>{% endif %}
 {% endblock %}

@@ -672,7 +672,9 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: 0.85em; backgr
 .evento--pausa { background: var(--pronto-fondo); }
 
 .sim-grafica__cabeza { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; flex-wrap: wrap; }
-.sim-grafica { display: block; width: 100%; height: 280px; background: #fbfcfc; border-radius: 10px; }
+.sim-grafica__panel { padding: 14px 16px; }
+.sim-grafica__panel h2 { font-size: 1rem; }
+.sim-grafica { display: block; width: 100%; height: 210px; background: #fbfcfc; border-radius: 10px; }
 .sim-grafica__dia { stroke: #eef0f3; vector-effect: non-scaling-stroke; }
 .sim-grafica__texto { font-size: 10px; fill: var(--sutil); }
 .sim-grafica__marca { font-size: 10px; font-weight: 700; }
