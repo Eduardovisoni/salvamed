@@ -57,6 +57,7 @@
     });
     document.querySelectorAll("form[data-una-vez]").forEach(function (formulario) {
       formulario.addEventListener("submit", function (evento) {
+        if (evento.defaultPrevented) return; // se canceló la confirmación o la página no validó: el botón sigue activo
         if (formulario.dataset.enviado) { evento.preventDefault(); return; }
         formulario.dataset.enviado = "1";
         formulario.querySelectorAll("button[type=submit]").forEach(function (b) { b.disabled = true; });
