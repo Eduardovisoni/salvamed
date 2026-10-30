@@ -31,7 +31,7 @@
 
 {% if not corrida %}
 <section class="panel vacio">
-  <p>No hay una corrida activa. Elige un escenario y empieza: la farmacia interna arranca sin historia y el plan aparece cuando hay días completos de despachos.</p>
+  <p>No hay una corrida activa. Elige un escenario y empieza: el inventario arranca sin historia y el plan aparece cuando hay días completos de despachos.</p>
   <ul class="politica" style="text-align:left;max-width:720px;margin:0 auto">
     {% for clave, e in escenarios.items() %}<li><strong>{{ e.titulo }}.</strong> {{ e.descripcion }}</li>{% endfor %}
   </ul>
@@ -83,7 +83,7 @@
         <div class="sim-tienda" id="tienda">
           <ul class="sim-servicios" id="servicios" aria-label="Servicios del sanatorio"></ul>
           <div class="sim-pasillo" id="pasillo" aria-hidden="true"></div>
-          <div class="sim-caja"><span aria-hidden="true">💊</span> Farmacia interna<small id="caja-total"></small></div>
+          <div class="sim-caja"><span aria-hidden="true">💊</span> Inventario<small id="caja-total"></small></div>
         </div>
         <div class="sim-estantes" id="estantes"></div>
       </section>

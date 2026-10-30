@@ -180,7 +180,7 @@ def lineas_de(db: Session, despacho: Despacho) -> list[tuple[DespachoLinea, Medi
 
 
 def anular_despacho(db: Session, despacho: Despacho, motivo: str, momento: datetime, usuario="") -> None:
-    """Las unidades regresan a la farmacia con un movimiento de anulación; el despacho queda marcado."""
+    """Las unidades regresan al inventario con un movimiento de anulación; el despacho queda marcado."""
     if despacho.estado != "confirmado":
         raise ErrorDeOperacion("Ese despacho ya estaba anulado.")
     motivo = motivo.strip()

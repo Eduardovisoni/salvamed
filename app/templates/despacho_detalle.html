@@ -33,9 +33,9 @@
 </section>
 
 {% if despacho.estado == "confirmado" %}
-<form class="panel" method="post" action="/despachos/{{ despacho.id }}/anular" data-confirmar="¿Anular el despacho #{{ despacho.id }}? Las unidades regresan a la farmacia." data-una-vez>
+<form class="panel" method="post" action="/despachos/{{ despacho.id }}/anular" data-confirmar="¿Anular el despacho #{{ despacho.id }}? Las unidades regresan al inventario." data-una-vez>
   <h2>Anular despacho</h2>
-  <p class="sutil">Las unidades regresan a la farmacia.</p>
+  <p class="sutil">Las unidades regresan al inventario.</p>
   <div class="campo">
     <label for="motivo">Motivo</label>
     <input class="campo__entrada" id="motivo" name="motivo" maxlength="200" required placeholder="Ej. Se registró en el servicio equivocado">

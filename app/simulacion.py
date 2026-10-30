@@ -1,8 +1,8 @@
 """Simulación del Sanatorio El Roble en tiempo acelerado.
 
 Los servicios del sanatorio (Emergencia, Encamamiento, Cuidados Intensivos,
-Sala de operaciones, Traumatología y Ambulancia) piden medicamentos a la
-farmacia interna a lo largo de las 24 horas, cada uno con su propio horario:
+Sala de operaciones, Traumatología y Ambulancia) piden medicamentos al
+inventario del sanatorio a lo largo de las 24 horas, cada uno con su propio horario:
 las rondas de encamamiento, las cirugías programadas de día, más emergencias en
 la noche y el fin de semana. Los medicamentos, cantidades y horarios son
 simulados; solo los nombres de los servicios vienen de lo que publica el
@@ -144,7 +144,7 @@ ESCENARIOS = {
         Escenario(
             "base",
             "Sanatorio en un mes normal",
-            "Seis servicios piden ocho medicamentos a la farmacia interna las 24 horas, con días altos, bajos y sin "
+            "Seis servicios del sanatorio piden ocho medicamentos las 24 horas, con días altos, bajos y sin "
             "consumo de algunos productos. Se ve el primer aviso, la confirmación por Telegram, el consumo de parte de "
             "la reserva mientras corre L y la recepción a tiempo.",
             2026,
@@ -738,7 +738,7 @@ def _detalle_pausa(db: Session, c: Corrida, pedido_id: int, evaluaciones) -> dic
 
 
 def serie(db: Session, c: Corrida, medicamento_id: int) -> dict:
-    """Existencia en el tiempo (en minutos de farmacia abierta), R e IS de cada día, pedidos y recepciones."""
+    """Existencia en el tiempo (en minutos de jornada), R e IS de cada día, pedidos y recepciones."""
     puntos = [
         [round(minuto_de(c, mv.fecha), 2), mv.existencia_despues, mv.tipo]
         for mv in db.scalars(select(Movimiento).where(Movimiento.medicamento_id == medicamento_id).order_by(Movimiento.fecha, Movimiento.id))

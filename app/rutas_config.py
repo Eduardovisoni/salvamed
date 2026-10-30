@@ -9,10 +9,9 @@ from sqlalchemy.orm import Session
 
 from app import importacion, telegram
 from app.ajustes import ajustes
-from app.db import Importacion, Medicamento, Mensaje, Proveedor, lista_de_servicios, motor, sesion
+from app.db import Importacion, Medicamento, Proveedor, lista_de_servicios, motor, sesion
 from app.formulario import CAMPOS_PROVEEDOR, GRUPOS_CONFIGURACION, campos, leer, valores_de
 from app.inventario import ErrorDeOperacion
-from app.migraciones import tablas_de_respaldo
 from app.planificacion import configuracion
 from app.web import pagina
 
@@ -36,10 +35,7 @@ def _pagina_config(request, db: Session, valores=None, errores=None, mensaje="",
             "proveedores": proveedores,
             "campos_proveedor": CAMPOS_PROVEEDOR,
             "valores_proveedor": {p.id: valores_de(p, CAMPOS_PROVEEDOR) for p in proveedores},
-            "bot": telegram.estado_bot(),
-            "mensajes": list(db.scalars(select(Mensaje).order_by(Mensaje.id.desc()).limit(12))),
             "catalogo_vacio": db.scalar(select(Medicamento.id).where(Medicamento.corrida_id.is_(None))) is None,
-            "respaldo": tablas_de_respaldo(motor),
             "mensaje": mensaje,
         },
         estado,

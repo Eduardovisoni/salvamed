@@ -80,7 +80,7 @@ GRUPOS_MEDICAMENTO = (
 GRUPOS_CONFIGURACION = (
     Grupo(
         "Calendario",
-        "Le dice al sistema cuándo trabaja la farmacia. Con esto pasa la demanda de un día a la de un año "
+        "Le dice al sistema cuándo trabaja el sanatorio. Con esto pasa la demanda de un día a la de un año "
         "(D = μD × A) y sabe qué días contar al sacar el promedio de consumo. El sanatorio atiende las 24 horas, "
         "todos los días.",
         (

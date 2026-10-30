@@ -22,7 +22,7 @@ def _n(valor: float | None, decimales: int = 1) -> str:
 
 def _encabezado(corrida_id) -> str:
     if corrida_id is None:
-        return "🏥 SALVAMED · Sanatorio El Roble (farmacia interna)"
+        return "🏥 SALVAMED · Sanatorio El Roble"
     return f"🧪 SALVAMED · SIMULACIÓN del sanatorio (corrida #{corrida_id}) — no es inventario real"
 
 

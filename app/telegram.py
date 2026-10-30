@@ -378,15 +378,3 @@ def configurar_webhook(via) -> None:
             "allowed_updates": ["message", "callback_query"],
         },
     )
-
-
-def estado_bot() -> dict:
-    a = ajustes()
-    return {
-        "modo": a.telegram_modo,
-        "con_token": bool(a.telegram_token),
-        "chats": a.chats,
-        "chats_simulacion": a.chats_simulacion,
-        "usuarios": a.usuarios,
-        "url_publica": a.url_publica,
-    }

@@ -609,11 +609,21 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: 0.85em; backgr
 .opcion--nueva { animation: fila-entra 0.4s ease-out; }
 .opciones__agregar { display: flex; gap: 8px; max-width: 440px; }
 .grupo__descripcion { max-width: 760px; line-height: 1.5; }
-.fila-proveedor { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)) auto; gap: 10px; align-items: end; padding: 14px 0; border-bottom: 1px solid var(--borde); }
-.fila-proveedor .campo__ayuda, .fila-proveedor label .sutil { display: none; }
-.fila-proveedor label { min-height: 2.6em; align-items: flex-end; font-size: 0.8rem; color: var(--sutil); }
-.fila-proveedor .boton { height: 38px; }
-.fila-proveedor--nuevo { border-bottom: 0; }
+/* Proveedores */
+.prov-tabla { display: grid; gap: 6px; }
+.prov-fila { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 1.3fr) 84px; gap: 8px; align-items: center; margin: 0; }
+.prov-fila--cabeza { font-size: 0.775rem; color: var(--sutil); font-weight: 500; padding-bottom: 2px; }
+.prov-fila--cabeza span { display: inline-flex; align-items: center; gap: 6px; }
+.prov-fila--nueva { margin-top: 6px; padding-top: 12px; border-top: 1px dashed var(--borde-fuerte); }
+.prov-fila .campo__entrada { min-height: 34px; padding-top: 5px; padding-bottom: 5px; font-size: 0.875rem; }
+.prov-fila .boton { width: 100%; height: 34px; }
+.prov-celda { display: block; min-width: 0; }
+.prov-celda__etiqueta { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.con-unidad { position: relative; display: block; }
+.con-unidad__texto { position: absolute; top: 50%; right: 11px; transform: translateY(-50%); color: var(--tenue); font-size: 0.8rem; pointer-events: none; }
+.con-unidad .campo__entrada { padding-right: 44px; }
+.con-unidad--antes .con-unidad__texto { right: auto; left: 11px; }
+.con-unidad--antes .campo__entrada { padding-right: 12px; padding-left: 26px; }
 .mapeo { margin: 8px 0 16px; }
 
 /* Despacho */
@@ -652,6 +662,10 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: 0.85em; backgr
 .despacho .carrito .carrito__cantidad { background: var(--superficie); }
 .panel--compacto { padding: 14px 20px; margin-bottom: 12px; }
 .panel--compacto > h2 { margin-bottom: 8px; }
+.panel--fila { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding: 14px 20px; margin-bottom: 12px; }
+.panel--fila h2 { margin-bottom: 2px; }
+.panel--fila p { margin: 0; }
+.panel--fila form { margin: 0; }
 .panel__cabeza { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
 .panel__cabeza h2 { margin: 0; }
 .panel__cabeza .sutil { font-size: 0.775rem; }
@@ -936,7 +950,10 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: 0.85em; backgr
   .tablero { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .sim-barra { grid-template-columns: 1fr; }
   .sim-estantes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .fila-proveedor { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .prov-fila { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 10px 0; border-bottom: 1px solid var(--borde); }
+  .prov-fila--cabeza { display: none; }
+  .prov-fila .prov-celda:first-child, .prov-fila .boton { grid-column: 1 / -1; }
+  .prov-celda__etiqueta { position: static; width: auto; height: auto; clip: auto; display: block; margin-bottom: 3px; font-size: 0.75rem; color: var(--sutil); }
   .resumen { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .columnas { grid-template-columns: 1fr; }
 }

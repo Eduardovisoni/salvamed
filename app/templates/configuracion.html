@@ -33,7 +33,7 @@
   {% endfor %}
   <fieldset class="grupo">
     <legend>Servicios que reciben medicamentos</legend>
-    <p class="sutil grupo__descripcion">Las áreas del sanatorio a las que la farmacia entrega medicamentos. Son las opciones de «Servicio que recibe» en el despacho.</p>
+    <p class="sutil grupo__descripcion">Las áreas del sanatorio que reciben medicamentos. Son las opciones de «Servicio que recibe» en el despacho.</p>
     <div class="campo{% if errores.get('servicios') %} campo--error{% endif %}">
       <textarea id="servicios" name="servicios" hidden>{{ valores.get("servicios", "") }}</textarea>
       <ul class="opciones" id="servicios-lista" aria-label="Servicios"></ul>
@@ -47,46 +47,58 @@
   <div class="acciones"><button class="boton boton--primario" type="submit">Guardar configuración</button></div>
 </form>
 
+{% macro fila_proveedor(v, accion, boton, nueva=false) %}
+  <form class="prov-fila{% if nueva %} prov-fila--nueva{% endif %}" method="post" action="{{ accion }}">
+    <label class="prov-celda"><span class="prov-celda__etiqueta">Proveedor</span>
+      <input class="campo__entrada" name="nombre" maxlength="120" required value="{{ v.get('nombre', '') }}" placeholder="{{ 'Nombre del nuevo proveedor' if nueva else 'Nombre' }}">
+    </label>
+    <label class="prov-celda"><span class="prov-celda__etiqueta">Plazo de entrega</span>
+      <span class="con-unidad"><input class="campo__entrada" name="tiempo_entrega" type="number" inputmode="decimal" step="any" min="0" value="{{ v.get('tiempo_entrega', '') }}" placeholder="{{ cfg.tiempo_entrega | corto }}"><span class="con-unidad__texto">días</span></span>
+    </label>
+    <label class="prov-celda"><span class="prov-celda__etiqueta">Costo de envío</span>
+      <span class="con-unidad con-unidad--antes"><span class="con-unidad__texto">Q</span><input class="campo__entrada" name="costo_envio" type="number" inputmode="decimal" step="any" min="0" value="{{ v.get('costo_envio', '') }}" placeholder="{{ cfg.costo_pedido | corto }}"></span>
+    </label>
+    <label class="prov-celda"><span class="prov-celda__etiqueta">Medicamentos por envío</span>
+      <input class="campo__entrada" name="articulos_por_envio" type="number" inputmode="numeric" step="1" min="1" value="{{ v.get('articulos_por_envio', '') or 1 }}">
+    </label>
+    <label class="prov-celda"><span class="prov-celda__etiqueta">Contacto</span>
+      <input class="campo__entrada" name="contacto" maxlength="160" value="{{ v.get('contacto', '') }}" placeholder="Teléfono o correo">
+    </label>
+    <button class="boton boton--chico" type="submit">{{ boton }}</button>
+  </form>
+{% endmacro %}
 <section class="panel" id="proveedores" style="margin-top:16px">
   <h2>Proveedores</h2>
-  {% for prov in proveedores %}
-  <form class="fila-proveedor" method="post" action="/proveedores/{{ prov.id }}">
-    {% set valores = valores_proveedor[prov.id] %}{% set errores = {} %}{% set sufijo = "_" ~ prov.id %}
-    {% for campo in campos_proveedor %}{% include "_campo.html" %}{% endfor %}
-    <button class="boton boton--chico" type="submit">Guardar</button>
-  </form>
-  {% endfor %}
-  <form class="fila-proveedor fila-proveedor--nuevo" method="post" action="/proveedores">
-    {% set valores = {"articulos_por_envio": "1"} %}{% set errores = {} %}{% set sufijo = "_nuevo" %}
-    {% for campo in campos_proveedor %}{% include "_campo.html" %}{% endfor %}
-    <button class="boton boton--chico" type="submit">Agregar proveedor</button>
-  </form>
+  <p class="sutil grupo__descripcion">
+    Las empresas que le venden medicamentos al sanatorio. El plazo de entrega (L) y el costo de envío (S) de cada una se usan para sus medicamentos;
+    si un campo queda vacío (con el número en gris), se usa el valor general de Política.
+    «Medicamentos por envío» reparte el costo de envío: si suelen llegar 5 medicamentos juntos, a cada uno le toca la quinta parte.
+    Cada fila se guarda con su propio botón.
+  </p>
+  <div class="prov-tabla">
+    <div class="prov-fila prov-fila--cabeza" aria-hidden="true">
+      <span>Proveedor</span><span>Plazo de entrega <i class="simbolo">L</i></span><span>Costo de envío <i class="simbolo">S</i></span><span>Medicamentos por envío</span><span>Contacto</span><span></span>
+    </div>
+    {% for prov in proveedores %}{{ fila_proveedor(valores_proveedor[prov.id], "/proveedores/" ~ prov.id, "Guardar") }}{% endfor %}
+    {{ fila_proveedor({}, "/proveedores", "Agregar", nueva=true) }}
+  </div>
 </section>
 
-<section class="panel" id="telegram">
-  <h2>Telegram</h2>
-  <dl class="cuentas cuentas--fila">
-    <div><dt>Modo</dt><dd>{{ {"simulado": "Simulado (sin Telegram real)", "polling": "Local · long polling", "webhook": "En línea · webhook"}[bot.modo] }}</dd></div>
-    <div><dt>Chats de operación</dt><dd>{{ bot.chats | join(", ") or "—" }}</dd></div>
-    <div><dt>Chats de simulación</dt><dd>{{ bot.chats_simulacion | join(", ") or "(los de operación)" }}</dd></div>
-    <div><dt>Usuarios autorizados</dt><dd>{{ bot.usuarios | join(", ") or "cualquiera del chat" }}</dd></div>
-  </dl>
-  {% if bot.modo == "simulado" %}
-  <p class="sutil">Sin <code>TELEGRAM_TOKEN</code> los avisos se simulan y se responden desde la web. Ver el README.</p>
-  {% endif %}
-  <details class="plegable plegable--interno">
-    <summary>Últimos avisos <span class="plegable__nota">{{ mensajes | length }}</span></summary>
-    {% include "_mensajes.html" %}
-  </details>
+<section class="panel panel--fila" id="telegram">
+  <div>
+    <h2>Telegram</h2>
+    <p class="sutil">La conexión con el encargado de compras es por Telegram.</p>
+  </div>
 </section>
 
-<section class="panel" id="datos">
-  <h2>Datos</h2>
-  <p class="sutil">Carga 30 medicamentos simulados para probar o exponer.</p>
+<section class="panel panel--fila" id="datos">
+  <div>
+    <h2>Datos de demostración</h2>
+    <p class="sutil">Carga 30 medicamentos simulados. Si uno ya existe, no se duplica.</p>
+  </div>
   <form method="post" action="/configuracion/demo" data-confirmar="Se agregará el catálogo de demostración (30 medicamentos simulados) a la operación. ¿Continuar?" data-una-vez>
-    <button class="boton {% if catalogo_vacio %}boton--primario{% endif %}" type="submit">Cargar catálogo de demostración</button>
+    <button class="boton {% if catalogo_vacio %}boton--primario{% endif %}" type="submit">Cargar catálogo</button>
   </form>
-  <p class="sutil" style="margin-bottom:0">Si un medicamento ya existe, no se duplica ni cambia su existencia.</p>
 </section>
 {% endblock %}
 
@@ -129,5 +141,9 @@
     });
     pintar();
   })();
+
+  document.querySelectorAll(".prov-fila:not(.prov-fila--nueva)").forEach(function (fila) {
+    fila.addEventListener("input", function () { fila.querySelector("button").classList.add("boton--primario"); });
+  });
 </script>
 {% endblock %}

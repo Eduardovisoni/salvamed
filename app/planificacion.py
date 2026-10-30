@@ -1,7 +1,7 @@
 """Evaluación de cada medicamento: parámetros, plan de la clase 12 y estado.
 
 Separa tres niveles:
-- datos de operación (despachos, recepciones, ajustes) que registra el personal de farmacia,
+- datos de operación (despachos, recepciones, ajustes) que registra el personal del sanatorio,
 - parámetros administrativos (configuración general y excepciones por medicamento),
 - resultados que calcula el sistema (μD, σD, D, Q, R, IS, ...).
 

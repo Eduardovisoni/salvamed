@@ -53,15 +53,3 @@ def migrar(motor) -> int:
         conexion.execute(_version.delete())
         conexion.execute(_version.insert().values(version=actual))
     return actual
-
-
-def tablas_de_respaldo(motor) -> dict[str, int]:
-    """Cuántas filas quedan en las tablas de la versión 1, si existen."""
-    resultado = {}
-    with motor.connect() as conexion:
-        revisor = inspect(conexion)
-        for nombre in ("medicamentos", "movimientos"):
-            if revisor.has_table(nombre):
-                tabla = Table(nombre, MetaData(), autoload_with=conexion)
-                resultado[nombre] = conexion.execute(select(func.count()).select_from(tabla)).scalar()
-    return resultado

@@ -1,6 +1,6 @@
 """Tablas de SALVAMED.
 
-SALVAMED lleva la farmacia interna del Sanatorio El Roble: los medicamentos salen
+SALVAMED lleva el inventario de medicamentos del Sanatorio El Roble: los medicamentos salen
 por despachos a los servicios (Emergencia, Encamamiento, ...), sin datos de pacientes.
 
 Operación y simulación comparten las mismas tablas y las mismas reglas: lo que
@@ -204,7 +204,7 @@ class Movimiento(Base):
 
 
 class Despacho(Base):
-    """Entrega de la farmacia interna a un servicio. No guarda datos de pacientes."""
+    """Entrega de medicamentos a un servicio del sanatorio. No guarda datos de pacientes."""
 
     __tablename__ = "despachos"
 
@@ -378,7 +378,7 @@ class Importacion(Base):
 
 
 class Corrida(Base):
-    """Una corrida de simulación. El reloj virtual se mide en minutos de farmacia abierta."""
+    """Una corrida de simulación. El reloj virtual se mide en minutos de jornada."""
 
     __tablename__ = "corridas"
 
