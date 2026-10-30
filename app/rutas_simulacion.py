@@ -24,6 +24,7 @@ def pantalla(request: Request, db: Session = Depends(sesion)):
             "velocidades": simulacion.VELOCIDADES,
             "anteriores": simulacion.corridas_anteriores(db),
             "minutos_por_segundo": simulacion.MINUTOS_POR_SEGUNDO,
+            "recargo": simulacion.RECARGO_EMERGENCIA,
         },
     )
 
@@ -69,11 +70,16 @@ async def nueva(request: Request, db: Session = Depends(sesion)):
         demora = float(str(formulario.get("demora", "0")).replace(",", ".") or 0)
     except ValueError:
         demora = 0
+    try:
+        recargo = float(str(formulario.get("recargo", simulacion.RECARGO_EMERGENCIA)).replace(",", ".") or 0)
+    except ValueError:
+        recargo = simulacion.RECARGO_EMERGENCIA
     simulacion.crear_corrida(
         db,
         str(formulario.get("escenario", "base")),
         int(semilla) if semilla.isdigit() else None,
         min(max(demora, 0), 72),
+        min(max(recargo, 0), 300),
     )
     return RedirectResponse("/simulacion", status_code=303)
 

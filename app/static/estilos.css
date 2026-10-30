@@ -933,6 +933,71 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: 0.85em; backgr
 .sim-grafica__marca--aviso { fill: var(--pronto); }
 .sim-grafica__ahora { stroke: var(--texto); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 
+/* Comparación: El Roble hoy contra SALVAMED */
+:root { --roble: #7c3aed; --roble-fondo: #f6f3ff; }
+.sim-comparar { margin-bottom: 16px; }
+.comparar__resumen { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; padding: 14px 20px; margin-bottom: 12px; }
+.comparar__ahorro { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.comparar__etiqueta { font-size: 0.8rem; color: var(--sutil); font-weight: 500; }
+.comparar__monto { font-size: 1.7rem; font-weight: 600; letter-spacing: -0.02em; color: var(--bien); font-variant-numeric: tabular-nums; }
+.comparar__monto--menos { color: var(--pedir); }
+.comparar__pct { font-size: 0.85rem; font-weight: 500; color: var(--bien); background: var(--bien-fondo); border-radius: 999px; padding: 2px 10px; }
+.comparar__pct:empty { display: none; }
+.comparar__supuestos { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.775rem; color: var(--sutil); flex: 1; justify-content: flex-end; }
+.comparar__supuestos li::before { content: "·"; margin-right: 6px; color: var(--tenue); }
+.comparar__supuestos li:first-child::before { content: ""; margin: 0; }
+.comparar__supuestos .cuadra { color: var(--bien); font-weight: 500; }
+.comparar__lados { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.lado { padding: 16px 18px; border-top: 3px solid var(--lado); margin-bottom: 0; }
+.lado--roble { --lado: var(--roble); }
+.lado--salvamed { --lado: var(--primario); }
+.lado__cabeza { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.lado__cabeza h2 { margin: 0; font-size: 1rem; display: flex; align-items: center; gap: 8px; }
+.lado__punto { width: 9px; height: 9px; border-radius: 50%; background: var(--lado); display: inline-block; }
+.lado__regla { font-size: 0.775rem; color: var(--sutil); }
+.lado__cuentas { margin: 0 0 12px; display: grid; grid-template-columns: 1.3fr repeat(3, minmax(0, 1fr)); gap: 8px; }
+.lado__cuentas div { background: var(--fondo); border-radius: var(--radio-chico); padding: 8px 10px; min-width: 0; }
+.lado__cuentas dt { font-size: 0.72rem; color: var(--sutil); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lado__cuentas dd { margin: 2px 0 0; font-weight: 600; font-variant-numeric: tabular-nums; font-size: 0.95rem; white-space: nowrap; }
+.lado__cuentas dd small { display: block; font-weight: 400; font-size: 0.7rem; color: var(--sutil); white-space: normal; line-height: 1.3; margin-top: 2px; }
+.lado__cuentas .lado__total { background: var(--superficie); border: 1px solid var(--borde); }
+.lado__cuentas .lado__total dd { font-size: 1.25rem; color: var(--lado); }
+.lado__cuentas .lado__alerta dd { color: var(--pedir); }
+.lado__meds { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.lado__med { display: grid; grid-template-columns: minmax(0, 1fr) 90px 34px minmax(0, 1.15fr); gap: 10px; align-items: center; font-size: 0.8rem; padding: 4px 8px; border-radius: 6px; transition: background 0.3s; }
+.lado__nombre { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lado__barra { position: relative; height: 6px; border-radius: 999px; background: var(--relleno); overflow: hidden; }
+.lado__relleno { position: absolute; left: 0; top: 0; height: 100%; border-radius: 999px; background: var(--lado); transition: width 0.35s; }
+.lado__camino { position: absolute; top: 0; height: 100%; background: repeating-linear-gradient(45deg, #93c5fd, #93c5fd 3px, #dbeafe 3px, #dbeafe 6px); }
+.lado__numero { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.lado__nota { font-size: 0.72rem; color: var(--sutil); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lado__nota b { color: var(--pedir); font-weight: 500; }
+.lado__emerg { color: var(--pedir); font-weight: 500; font-size: 0.72rem; margin-left: 6px; }
+.lado__emerg:empty { display: none; }
+.lado__med--agotado { background: var(--pedir-fondo); }
+.lado__med--agotado .lado__numero { color: var(--pedir); }
+.lado__eventos { list-style: none; margin: 10px 0 0; padding: 10px 0 0; border-top: 1px solid var(--borde); display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; min-height: 92px; }
+.lado__eventos li { display: flex; gap: 8px; min-width: 0; overflow: hidden; font-size: 0.75rem; padding: 3px 6px; border-radius: 6px; animation: entrar 0.3s ease-out; }
+.lado__eventos .evento__hora { flex: none; }
+.lado__texto { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lado__evento--agotado, .lado__evento--emergencia, .lado__evento--faltante, .lado__evento--aviso { background: var(--pedir-fondo); }
+.lado__evento--recepcion { background: var(--bien-fondo); }
+.lado__evento--pedido { background: #f3f7ff; }
+.comparar__detalle { margin-top: 12px; padding: 12px 20px; }
+.comparar__detalle summary { cursor: pointer; font-weight: 500; font-size: 0.9rem; }
+.comparar__detalle[open] summary { margin-bottom: 10px; }
+.comparar__tabla th, .comparar__tabla td { padding: 7px 10px; font-size: 0.8rem; }
+.comparar__tabla thead tr:first-child th { text-align: center; border-bottom: 0; }
+.comparar__tabla .grupo--roble { color: var(--roble); }
+.comparar__tabla .grupo--salvamed { color: var(--primario); }
+.comparar__tabla .total { font-weight: 600; }
+.comparar__tabla .positivo { color: var(--bien); font-weight: 600; }
+.comparar__tabla .negativo { color: var(--pedir); font-weight: 600; }
+.comparar__tabla tfoot td { font-weight: 600; border-top: 1px solid var(--borde-fuerte); border-bottom: 0; }
+.comparar__formulas { margin: 10px 0 0; font-size: 0.775rem; }
+.grafica__roble { fill: none; stroke: var(--roble); stroke-width: 1.75; stroke-opacity: 0.85; vector-effect: non-scaling-stroke; }
+.grafica__muestra--roble { height: 0; border-top: 2px solid var(--roble); border-radius: 0; }
+
 @keyframes girar { to { transform: rotate(360deg); } }
 @keyframes latido { 50% { opacity: 0.6; } }
 @keyframes subir { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-26px); } }
@@ -947,6 +1012,10 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: 0.85em; backgr
 
 @media (max-width: 900px) {
   .despacho__fila, .dinero, .sim-rejilla, .sim-pausa__cuerpo { grid-template-columns: 1fr; }
+  .comparar__lados { grid-template-columns: 1fr; }
+  .lado__cuentas { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .comparar__supuestos { justify-content: flex-start; }
+  .lado__med { grid-template-columns: minmax(0, 1.4fr) 56px 30px minmax(0, 1fr); gap: 8px; }
   .tablero { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .sim-barra { grid-template-columns: 1fr; }
   .sim-estantes { grid-template-columns: repeat(2, minmax(0, 1fr)); }

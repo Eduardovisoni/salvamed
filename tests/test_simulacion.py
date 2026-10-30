@@ -1,6 +1,8 @@
 from sqlalchemy import func, select
 
-from app import dinero, pedidos, simulacion
+import pytest
+
+from app import dinero, pedidos, roble, simulacion
 from app.db import Despacho, EventoSim, Medicamento, Movimiento, Pedido
 from tests.ayudas import medicamento
 
@@ -62,7 +64,11 @@ def test_pausa_confirmacion_reanudacion_y_recepcion_tras_l(db):
     otra_vez, _ = simulacion.confirmar_pedido(db, pedido, "Expositor")
     assert not otra_vez
     linea, _ = pedidos.lineas_de(db, pedido)[0]
-    llegada = minuto_aviso + linea.tiempo_entrega * c.parametros["minutos_dia"]
+    md = c.parametros["minutos_dia"]
+    llegada = c.parametros["llegadas"][str(pedido.id)]
+    assert minuto_aviso + (linea.tiempo_entrega - 1) * md <= llegada <= minuto_aviso + (linea.tiempo_entrega + 1) * md
+    db.refresh(pedido)
+    assert abs(simulacion.minuto_de(c, pedido.fecha_estimada) - (minuto_aviso + linea.tiempo_entrega * md)) < 1  # lo que dijo el proveedor
     simulacion.avanzar(db, c, llegada - 1)
     db.refresh(pedido)
     assert pedido.estado == "realizado"
@@ -132,6 +138,7 @@ def test_pantalla_y_api(cliente):
     assert cliente.post("/simulacion/nueva", data={"escenario": "base", "semilla": "5"}, follow_redirects=False).status_code == 303
     estado = cliente.get("/simulacion/estado").json()
     assert estado["corrida"]["semilla"] == 5 and len(estado["tarjetas"]) == 8
+    assert len(estado["comparacion"]["roble"]["filas"]) == 8 and estado["comparacion"]["tarifas"]["recargo"] == 0.2
     assert [s["nombre"] for s in estado["servicios"]][:2] == ["Emergencia", "Encamamiento"]
     r = cliente.post("/simulacion/control", data={"accion": "dia"}).json()
     assert r["reloj"]["dia"] == 2
@@ -143,3 +150,93 @@ def test_los_eventos_quedan_guardados(db):
     simulacion.controlar(db, c, "dia")
     tipos = {e.tipo for e in db.scalars(select(EventoSim).where(EventoSim.corrida_id == c.id))}
     assert {"inicio", "despacho", "cierre"} <= tipos
+
+
+# ---------------------------------------------------------------- El Roble hoy contra SALVAMED
+
+
+def test_plazo_aleatorio_entre_l_menos_1_y_l_mas_1():
+    plazos = [roble.plazo_aleatorio(2026, 0, k, 3) for k in range(400)]
+    assert all(2 <= x <= 4 for x in plazos)
+    assert abs(sum(plazos) / len(plazos) - 3) < 0.1  # en promedio L, el que usa la fórmula
+    assert len({round(x, 3) for x in plazos}) > 300  # no es un número fijo
+    assert roble.plazo_aleatorio(2026, 0, 5, 3) == roble.plazo_aleatorio(2026, 0, 5, 3)
+    assert roble.plazo_aleatorio(2026, 0, 0, 0.5) >= 0
+
+
+def test_costos_misma_cuenta_para_los_dos_lados():
+    t = roble.Tarifas(S=35, tasa=0.25, A=365, recargo=0.2)
+    c = roble.costos(10, envios=70, unidades_dia=36.5, emergencia_u=5, t=t)
+    assert c == pytest.approx({"pedir": 70, "mantener": 0.25, "emergencia": 10, "total": 80.25})
+
+
+class _Producto:
+    existencia, plazo, consumo, paquete = 10, 3, 4, 5
+
+
+def test_el_roble_pide_solo_cuando_se_acaba_y_a_ojo():
+    md = 1440
+    solicitudes = [(100, "Emergencia", ((0, 4),)), (200, "Emergencia", ((0, 4),)), (300, "Emergencia", ((0, 5),)), (400, "Emergencia", ((0, 2),))]
+    estantes, sucesos = roble.simular([_Producto()], solicitudes, 500, md, 7)
+    e = estantes[0]
+    assert e.pedidos == 1 and e.despachado == 10
+    assert e.emergencia_u == 5 and e.emergencia_veces == 2  # 3 de la tercera solicitud y 2 de la cuarta
+    agotado = [s for s in sucesos if s.tipo == "agotado"][0]
+    assert agotado.minuto == 300  # pidió al llegar a 0, no antes
+    assert agotado.cantidad == roble.cantidad_a_ojo(7, 0, 0, 4, 5)
+    assert 7 * 4 <= agotado.cantidad <= 21 * 4 + 5 and agotado.cantidad % 5 == 0
+    assert agotado.llega == pytest.approx(300 + roble.plazo_aleatorio(7, 0, 0, 3) * md)
+    # Lo guardado: 10 hasta el minuto 100, 6 hasta el 200, 2 hasta el 300 y luego 0.
+    assert e.area == pytest.approx(10 * 100 + 6 * 100 + 2 * 100)
+    llegada = agotado.llega + 1
+    estantes, _ = roble.simular([_Producto()], solicitudes, llegada, md, 7)
+    assert estantes[0].existencia == agotado.cantidad and estantes[0].en_camino == 0
+
+
+def _comparar(db, dias, semilla=2026, recargo=20):
+    c = simulacion.crear_corrida(db, "base", semilla, 0, recargo)
+    _recorrer(db, c, dias)
+    return c, simulacion.estado(db, c)["comparacion"]
+
+
+def test_las_cuentas_de_la_comparacion_cuadran(db):
+    c, k = _comparar(db, 10)
+    assert k["demanda"]["salvamed"] == k["demanda"]["roble"] > 0  # las mismas solicitudes en los dos lados
+    t = roble.Tarifas(**k["tarifas"])
+    for lado in (k["salvamed"], k["roble"]):
+        assert lado["total"] == pytest.approx(lado["pedir"] + lado["mantener"] + lado["emergencia"])
+        for clave in ("pedir", "mantener", "emergencia", "total", "emergencia_u"):
+            assert lado[clave] == pytest.approx(sum(f[clave] for f in lado["filas"]))
+        for f, p in zip(lado["filas"], simulacion.ESCENARIOS["base"].productos):
+            assert f["mantener"] == pytest.approx(p.costo * t.tasa / t.A * f["unidades_dia"])
+            assert f["emergencia"] == pytest.approx(f["emergencia_u"] * p.costo * t.recargo)
+    assert k["roble"]["pedir"] == pytest.approx(k["roble"]["envios"] * t.S)
+    realizados = list(db.scalars(select(Pedido).where(Pedido.corrida_id == c.id, Pedido.realizado_en.is_not(None))))
+    assert k["salvamed"]["envios"] == len(realizados) > 0
+    assert k["salvamed"]["pedir"] == pytest.approx(sum(p.costo_envio for p in realizados))
+    assert k["salvamed"]["emergencia_u"] == c.faltantes
+    unidades = db.scalar(select(func.sum(Movimiento.cantidad)).where(Movimiento.corrida_id == c.id, Movimiento.tipo == "despacho"))
+    assert k["salvamed"]["despachado"] == abs(unidades)
+    assert k["ahorro"] == pytest.approx(k["roble"]["total"] - k["salvamed"]["total"])
+
+
+def test_salvamed_ahorra_porque_evita_emergencias(db):
+    _, k = _comparar(db, 20)
+    assert k["roble"]["emergencia_u"] > 5 * max(k["salvamed"]["emergencia_u"], 1)
+    assert k["ahorro"] > 0
+
+
+def test_sin_recargo_el_ahorro_viene_solo_de_las_emergencias(db):
+    _, con = _comparar(db, 20, recargo=20)
+    _, sin = _comparar(db, 20, recargo=0)
+    assert sin["roble"]["emergencia"] == sin["salvamed"]["emergencia"] == 0
+    assert con["ahorro"] - sin["ahorro"] == pytest.approx(con["roble"]["emergencia"] - con["salvamed"]["emergencia"])
+
+
+def test_corrida_vieja_sin_comparacion(db):
+    c = simulacion.crear_corrida(db, "base")
+    c.parametros = {k: v for k, v in c.parametros.items() if k not in ("tarifas", "area", "t_area", "emergencia", "ordenes")}
+    db.commit()
+    simulacion.controlar(db, c, "dia")
+    estado = simulacion.estado(db, c)
+    assert estado["comparacion"] is None and estado["serie"]["roble"] == []

@@ -24,7 +24,7 @@ sirven para la operación y para la simulación.
 | D | Demanda anual estimada = μD · A | Calculada; supone que el consumo reciente es representativo del año |
 | S | Costo de gestionar un pedido (Q por pedido) | Escenario base: Q35, **solo el envío** (referencia aportada por el grupo, no verificada en el sanatorio) |
 | H | Costo de mantener una unidad un año (Q por unidad al año) | H documentado, o costo de compra × tasa anual. Tasa académica por defecto: 25 % (supuesto editable) |
-| L | Plazo de entrega constante, en días | Del medicamento, del proveedor o general. Escenario base: 3 días |
+| L | Plazo de entrega promedio, en días (el que dice el proveedor) | Del medicamento, del proveedor o general. Escenario base: 3 días. En la simulación cada pedido tarda en realidad entre L − 1 y L + 1 |
 | p | Probabilidad de servicio objetivo | Configuración general (95 %) con excepción por medicamento (por ejemplo, 99 % para medicamentos críticos) |
 | Z | Valor de la normal estándar para p | Calculado |
 
@@ -86,6 +86,43 @@ un año (capital inmovilizado, espacio, cadena de frío, vencimientos…). Por e
 - La corrida arranca **sin historia**: el plan aparece con 2 días completos y es provisional mientras haya pocos días.
 - La pausa al llegar a R es un recurso de exposición. La respuesta del encargado se supone inmediata en tiempo virtual,
   salvo que se elija una demora de gestión para comparar corridas.
+- **El plazo no es fijo**: el proveedor dice L, pero cada pedido tarda un número al azar entre L − 1 y L + 1 días (con
+  L = 3, entre 2 y 4). En promedio es L, y ese promedio es el que usa la fórmula de la clase. Si el pedido tarda más de lo
+  prometido, SALVAMED avisa por Telegram que está atrasado.
+
+## El Roble hoy contra SALVAMED
+
+En la Simulación hay dos pantallas lado a lado. Las dos reciben **exactamente las mismas solicitudes** de los servicios
+(misma semilla, mismo minuto) y arrancan con las mismas existencias. Solo cambia la regla para pedir:
+
+| | El Roble hoy | Con SALVAMED |
+| --- | --- | --- |
+| ¿Cuándo pide? | Cuando el medicamento **ya se acabó** (existencia 0) | Cuando la posición llega a R redondeado hacia arriba |
+| ¿Cuánto pide? | A ojo: entre 7 y 21 días del consumo habitual, a paquetes completos | Q de la clase (EOQ) redondeada hacia arriba a paquetes |
+| Plazo del pedido | Entre L − 1 y L + 1 días | El mismo: el pedido número k de un medicamento usa el mismo sorteo en los dos lados |
+| Lo que se acaba | Se compra de emergencia con recargo | Igual |
+
+Los costos se cuentan con la misma fórmula en los dos lados:
+
+- **Pedir** = envíos × S (Q35). SALVAMED junta en un solo envío los medicamentos del mismo proveedor que piden a la vez;
+  en la tabla por medicamento ese envío se reparte entre ellos.
+- **Mantener** = costo × tasa anual (25 %) ÷ A (365) × unidades guardadas cada día. Es H por unidad y día, sumado sobre lo
+  que realmente estuvo en el estante.
+- **Emergencias** = unidades que no había × costo × recargo. El recargo es un supuesto (20 % por defecto) y se puede
+  cambiar al crear la corrida.
+- No incluye el precio normal de los medicamentos, igual que CT en la clase 12.
+
+Comprobación: en los dos lados, unidades despachadas + unidades compradas de emergencia = unidades que pidieron los
+servicios, y ese número es el mismo en las dos pantallas.
+
+**Resultado con la semilla 2026, 30 días, recargo 20 %:** El Roble hoy Q857.24, SALVAMED Q504.75, ahorro Q352.49 (41 %).
+El Roble compra 215 unidades de emergencia; SALVAMED 12 (salbutamol: ese pedido tardó 3.9 días en vez de 3). Con otras
+semillas el ahorro en 30 días va de 36 % a 49 %.
+
+**De dónde sale el ahorro.** Sin recargo (0 %) El Roble sale **más barato** en pedir + mantener (Q429.74 contra Q494.91),
+porque guarda menos: se queda en cero. SALVAMED gana porque evita las compras de emergencia, que en un sanatorio no son
+gratis. Tampoco gana en todos los medicamentos: en uno que casi nunca se acaba (por ejemplo la adrenalina en 30 días) El
+Roble puede salir unos quetzales más barato. El total sí favorece a SALVAMED en todas las semillas probadas.
 
 ## Datos de la demostración
 
@@ -100,8 +137,9 @@ un año (capital inmovilizado, espacio, cadena de frío, vencimientos…). Por e
 
 ## Límites
 
-- El modelo supone demanda diaria independiente, aproximadamente normal, y plazo constante. No garantiza que nunca
-  falte: p es la probabilidad de que, cada vez que se pide, el medicamento no se acabe mientras llega el pedido (durante
+- El modelo supone demanda diaria independiente, aproximadamente normal, y plazo constante. En la simulación el plazo
+  varía (entre L − 1 y L + 1) y la fórmula usa su promedio, así que la probabilidad real queda un poco por debajo de p. No
+  garantiza que nunca falte: p es la probabilidad de que, cada vez que se pide, el medicamento no se acabe mientras llega el pedido (durante
   L). La clase lo explica como «de cada 1000 solicitudes, 995 encuentran el producto»: es la misma idea vista desde las
   solicitudes. Como un faltante solo puede pasar al final de un ciclo, casi todas las solicitudes se atienden.
 - Con pocos días la estimación es provisional (se indica cuántos días la sustentan). Ningún número de días garantiza
@@ -111,4 +149,5 @@ un año (capital inmovilizado, espacio, cadena de frío, vencimientos…). Por e
   despachar».
 - Recalcular estadísticos con datos nuevos es una estimación actualizada, no aprendizaje automático ni inteligencia
   artificial.
-- Los resultados de la simulación son escenarios: no son ahorros reales del sanatorio.
+- Los resultados de la simulación son escenarios: no son ahorros reales del sanatorio. La regla del Roble (pedir al
+  llegar a 0, entre 7 y 21 días a ojo) y el recargo de emergencia son supuestos del grupo, no datos medidos.

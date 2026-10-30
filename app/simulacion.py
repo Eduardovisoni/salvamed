@@ -32,8 +32,16 @@ inmediata en tiempo virtual, o con la demora de gestión que se elija al crear
 la corrida. Si varios medicamentos avisan a la vez, cada aviso es una causa de
 pausa y el reloj sigue solo cuando se confirmaron todas.
 
-Recepción. Solo en la simulación llega sola: cuando se cumple el plazo L (en
-días de operación) desde que el pedido se realizó, se registra la entrada.
+Recepción. Solo en la simulación llega sola. El plazo real de cada pedido es
+aleatorio, entre L − 1 y L + 1 días de operación (en promedio L, que es el que
+usa la fórmula de la clase): el proveedor dice L, pero unas veces llega antes y
+otras después.
+
+Comparación. Al lado corre «El Roble hoy» (app/roble.py): las mismas solicitudes
+con la regla de pedir cuando se acaba y a ojo. Lo que un servicio pide y no hay
+se compra de emergencia con recargo, en los dos lados. Los costos de cada lado
+son pedir (envíos) + mantener (H por unidad y día guardada) + el recargo de las
+emergencias.
 """
 
 import math
@@ -41,13 +49,15 @@ import random
 import threading
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
+from functools import lru_cache
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app import inventario, pedidos
+from app import inventario, pedidos, roble
 from app.consumo import GUATEMALA, dia_local, hora_local
 from app.db import (
+    CANCELADO,
     REALIZADO,
     Corrida,
     EventoSim,
@@ -58,6 +68,7 @@ from app.db import (
     PedidoLinea,
     PlanDiario,
     Despacho,
+    DespachoLinea,
     Proveedor,
     ahora,
 )
@@ -68,6 +79,7 @@ from app.planificacion import configuracion, evaluar_varios
 MINUTOS_POR_SEGUNDO = 20
 VELOCIDADES = (1, 2, 4, 5)
 MAX_EVENTOS_POR_PASO = 400
+RECARGO_EMERGENCIA = 20  # % sobre el precio de compra de lo que se consigue de emergencia
 candado = threading.RLock()
 
 
@@ -224,6 +236,11 @@ def solicitudes_del_dia(escenario: Escenario, semilla: int, dia: int, minutos_di
     return [Solicitud(minuto, i + 1, nombre, tuple(compras)) for i, (nombre, minuto, compras) in enumerate(solicitudes)]
 
 
+@lru_cache(maxsize=4096)
+def _solicitudes(escenario: Escenario, semilla: int, dia: int, minutos_dia: int, dia_semana: int) -> tuple[Solicitud, ...]:
+    return tuple(solicitudes_del_dia(escenario, semilla, dia, minutos_dia, dia_semana))
+
+
 def _poisson(azar: random.Random, media: float) -> int:
     if media <= 0:
         return 0
@@ -289,7 +306,9 @@ def corrida_activa(db: Session) -> Corrida | None:
     return db.scalar(select(Corrida).where(Corrida.estado == "activa").order_by(Corrida.id.desc()))
 
 
-def crear_corrida(db: Session, clave: str = "base", semilla: int | None = None, demora_horas: float = 0) -> Corrida:
+def crear_corrida(
+    db: Session, clave: str = "base", semilla: int | None = None, demora_horas: float = 0, recargo: float = RECARGO_EMERGENCIA
+) -> Corrida:
     with candado:
         escenario = ESCENARIOS.get(clave, ESCENARIOS["base"])
         for vieja in db.scalars(select(Corrida).where(Corrida.estado == "activa")):
@@ -313,6 +332,11 @@ def crear_corrida(db: Session, clave: str = "base", semilla: int | None = None, 
             "dias_semana": cfg.dias_semana,
             "meds": [],
             "llegadas": {},
+            "tarifas": {"S": cfg.costo_pedido, "tasa": cfg.tasa_mantenimiento, "A": cfg.dias_operacion_anio, "recargo": max(recargo, 0) / 100},
+            "area": [0.0] * len(escenario.productos),
+            "t_area": 0.0,
+            "emergencia": [[0, 0] for _ in escenario.productos],
+            "ordenes": [0] * len(escenario.productos),
         }
         db.add(corrida)
         db.flush()
@@ -397,7 +421,7 @@ def avanzar(db: Session, c: Corrida, hasta: float, detener_en_evento: bool = Fal
     while c.estado == "activa" and not c.causas and procesados < limite:
         dia = c.dia_cerrado + 1
         fecha = fecha_del_dia(c, dia)
-        clientes = solicitudes_del_dia(escenario, c.semilla, dia, md, fecha.weekday())
+        clientes = _solicitudes(escenario, c.semilla, dia, md, fecha.weekday())
         siguiente_cliente = dia * md + clientes[c.evento_siguiente].minuto if c.evento_siguiente < len(clientes) else None
         cierre = (dia + 1) * md
         llegada = _siguiente_llegada(db, c)
@@ -409,6 +433,7 @@ def avanzar(db: Session, c: Corrida, hasta: float, detener_en_evento: bool = Fal
         minuto, clase, dato = min(candidatos, key=lambda x: (x[0], x[1]))
         if minuto > hasta:
             break
+        _acumular(db, c, minuto)
         c.minuto = minuto
         procesados += 1
         if clase == 0:
@@ -422,6 +447,7 @@ def avanzar(db: Session, c: Corrida, hasta: float, detener_en_evento: bool = Fal
         if detener_en_evento and hubo:
             break
     if not c.causas and c.minuto < hasta and procesados < limite:
+        _acumular(db, c, hasta)
         c.minuto = hasta
     if procesados >= limite:
         _reanclar(c)  # el reloj no puede ir más rápido de lo que se procesa
@@ -431,6 +457,16 @@ def avanzar(db: Session, c: Corrida, hasta: float, detener_en_evento: bool = Fal
 
 def _medicamentos(db: Session, c: Corrida) -> list[Medicamento]:
     return [db.get(Medicamento, i) for i in c.parametros["meds"]]
+
+
+def _acumular(db: Session, c: Corrida, hasta: float) -> None:
+    """Suma lo que estuvo guardado (unidades × minutos) hasta `hasta`: con eso sale el costo de mantener."""
+    p = c.parametros
+    if "area" not in p or hasta <= p["t_area"]:
+        return
+    pasado = hasta - p["t_area"]
+    area = [a + m.existencia * pasado for a, m in zip(p["area"], _medicamentos(db, c))]
+    c.parametros = dict(p, area=area, t_area=hasta)
 
 
 def _atender(db: Session, c: Corrida, solicitud: Solicitud, dia: int, minuto: float) -> bool:
@@ -444,7 +480,7 @@ def _atender(db: Session, c: Corrida, solicitud: Solicitud, dia: int, minuto: fl
             lineas.append(LineaPedida(m.id, entregable))
             items.append([m.id, entregable])
         if entregable < cantidad:
-            faltantes.append((m, cantidad - entregable))
+            faltantes.append((indice, m, cantidad - entregable))
     if lineas:
         despacho = inventario.despachar(
             db, solicitud.servicio, lineas, f"sim{c.id}-{dia}-{solicitud.numero}", momento, corrida_id=c.id, usuario="Servicio simulado"
@@ -453,11 +489,18 @@ def _atender(db: Session, c: Corrida, solicitud: Solicitud, dia: int, minuto: fl
             db, c, minuto, "despacho", cantidad=sum(n for _, n in items), texto=solicitud.servicio,
             items=items, costo=despacho.costo_total, servicio=solicitud.servicio, solicitud=solicitud.numero,
         )
-    for m, falta in faltantes:
+    if faltantes and "emergencia" in c.parametros:
+        emergencia = [list(x) for x in c.parametros["emergencia"]]
+        for indice, _, falta in faltantes:
+            emergencia[indice][0] += falta
+            emergencia[indice][1] += 1
+        c.parametros = dict(c.parametros, emergencia=emergencia)
+    for _, m, falta in faltantes:
         c.faltantes += falta
         _evento(
             db, c, minuto, "faltante", m.id, falta,
-            texto=f"{solicitud.servicio} pidió {m.nombre} y no alcanzó: faltaron {falta} {m.unidad}", servicio=solicitud.servicio,
+            texto=f"{solicitud.servicio} pidió {m.nombre} y no alcanzó: faltaron {falta} {m.unidad}, se compran de emergencia",
+            servicio=solicitud.servicio,
         )
     return _revisar_varios(db, c, [meds[indice] for indice, _ in solicitud.compras], minuto, momento)
 
@@ -566,21 +609,39 @@ def confirmar_pedido(db: Session, pedido: Pedido, usuario: str) -> tuple[bool, s
         db.refresh(c)
         minuto = c.minuto + (c.demora_gestion or 0)
         plazo = pedidos.plazo_de(db, pedido)
-        llegada = minuto + plazo * _minutos_dia(c)
-        cambio, texto = pedidos.marcar_realizado(db, pedido, usuario, momento_de(c, minuto), momento_de(c, llegada))
+        real, ordenes = _plazo_real(db, c, pedido, plazo)
+        llegada = minuto + real * _minutos_dia(c)
+        estimada = minuto + plazo * _minutos_dia(c)  # lo que dijo el proveedor
+        cambio, texto = pedidos.marcar_realizado(db, pedido, usuario, momento_de(c, minuto), momento_de(c, estimada))
         if not cambio:
             return cambio, texto
         c.parametros = dict(c.parametros, llegadas={**(c.parametros.get("llegadas") or {}), str(pedido.id): llegada})
+        if ordenes is not None:
+            c.parametros = dict(c.parametros, ordenes=ordenes)
         cantidad = sum(l.cantidad_pedida for l, _ in pedidos.lineas_de(db, pedido))
         demora = f" (respuesta modelada: +{c.demora_gestion / 60:g} h virtuales)" if c.demora_gestion else ""
         _evento(
             db, c, c.minuto, "pedido", cantidad=cantidad,
-            texto=f"Pedido #{pedido.id} realizado por {usuario}{demora}: {cantidad} unidades; llega en {plazo:g} días de operación ({momento_de(c, llegada):%d/%m %H:%M}).",
+            texto=f"Pedido #{pedido.id} realizado por {usuario}{demora}: {cantidad} unidades. El proveedor dice {plazo:g} días; esta vez tarda {real:.1f} y llega el {momento_de(c, llegada):%d/%m %H:%M}.",
             pedido=pedido.id, llegada=llegada,
         )
         _quitar(db, c, pedido.id)
         db.commit()
         return True, f"Pedido #{pedido.id} registrado (simulación). Llega el {momento_de(c, llegada):%d/%m %H:%M} virtual."
+
+
+def _plazo_real(db: Session, c: Corrida, pedido: Pedido, plazo: float) -> tuple[float, list[int] | None]:
+    """Sorteo del plazo de este pedido (el mismo que usa el Roble para su pedido número k del medicamento)
+    y la cuenta de pedidos por medicamento que queda si se confirma."""
+    if "ordenes" not in c.parametros:
+        return plazo, None
+    ids = c.parametros["meds"]
+    ordenes = list(c.parametros["ordenes"])
+    indices = [ids.index(m.id) for _, m in pedidos.lineas_de(db, pedido)]
+    real = roble.plazo_aleatorio(c.semilla, indices[0], ordenes[indices[0]], plazo)
+    for i in indices:
+        ordenes[i] += 1
+    return real, ordenes
 
 
 def _quitar(db: Session, c: Corrida, pedido_id: int) -> None:
@@ -653,6 +714,7 @@ def estado(db: Session, c: Corrida, desde_evento: int = 0, seleccionado: int | N
     from app import dinero
 
     resumen = dinero.resumen(db, c.id)
+    lados, estantes_roble = comparacion(db, c, abiertos)
     pausa = None
     if c.causas:
         pausa = _detalle_pausa(db, c, c.causas[0], evaluaciones)
@@ -699,7 +761,8 @@ def estado(db: Session, c: Corrida, desde_evento: int = 0, seleccionado: int | N
         "servicios": [{"nombre": x.nombre, "icono": x.icono} for x in ESCENARIOS[c.escenario].servicios],
         "pausa": pausa,
         "seleccionado": seleccionado,
-        "serie": serie(db, c, seleccionado),
+        "serie": serie(db, c, seleccionado, estantes_roble),
+        "comparacion": lados,
     }
 
 
@@ -737,8 +800,149 @@ def _detalle_pausa(db: Session, c: Corrida, pedido_id: int, evaluaciones) -> dic
     }
 
 
-def serie(db: Session, c: Corrida, medicamento_id: int) -> dict:
-    """Existencia en el tiempo (en minutos de jornada), R e IS de cada día, pedidos y recepciones."""
+def _solicitudes_atendidas(c: Corrida):
+    """Las solicitudes que el lado de SALVAMED ya atendió, en orden: son las mismas que recibe el Roble."""
+    escenario = ESCENARIOS[c.escenario]
+    md = _minutos_dia(c)
+    for dia in range(c.dia_cerrado + 2):
+        clientes = _solicitudes(escenario, c.semilla, dia, md, fecha_del_dia(c, dia).weekday())
+        hasta = len(clientes) if dia <= c.dia_cerrado else c.evento_siguiente
+        for s in clientes[:hasta]:
+            yield dia * md + s.minuto, s.servicio, s.compras
+
+
+def _lado(filas: list[dict]) -> dict:
+    claves = ("pedir", "mantener", "emergencia", "total", "pedidos", "despachado", "emergencia_u", "emergencia_veces")
+    return {"filas": filas, **{k: sum(f[k] for f in filas) for k in claves}, "agotados": sum(1 for f in filas if f["existencia"] == 0)}
+
+
+def _agrupar(c: Corrida, sucesos: list[tuple], meds: list[Medicamento], recargo: str, cuantos: int = 4) -> list[dict]:
+    """Lo último que pasó en un lado. Las compras de emergencia seguidas de un mismo medicamento van en una sola línea."""
+    nombres = {m.id: m for m in meds}
+    lista, abiertas = [], {}
+    for minuto, tipo, med_id, cantidad, texto in sucesos:
+        if tipo != "emergencia":
+            abiertas.pop(med_id, None)
+            lista.append({"minuto": minuto, "tipo": tipo, "texto": texto})
+            continue
+        grupo = abiertas.get(med_id)
+        if grupo is None:
+            grupo = abiertas[med_id] = {"tipo": "emergencia", "cantidad": 0, "veces": 0}
+            lista.append(grupo)
+        grupo["cantidad"] += cantidad
+        grupo["veces"] += 1
+        grupo["minuto"] = minuto
+        m = nombres.get(med_id)
+        grupo["texto"] = f"No hay {m.nombre if m else '?'}: se compraron {grupo['cantidad']} de emergencia ({recargo})"
+    lista = sorted(reversed(lista), key=lambda x: x["minuto"], reverse=True)  # lo más nuevo primero, también en el mismo minuto
+    return [{"hora": momento_de(c, x["minuto"]).strftime("%d/%m %H:%M"), "tipo": x["tipo"], "texto": x["texto"]} for x in lista[:cuantos]]
+
+
+def comparacion(db: Session, c: Corrida, abiertos: dict) -> tuple[dict | None, list]:
+    """El Roble hoy contra SALVAMED con las mismas solicitudes. Devuelve el resumen y los estantes del Roble."""
+    p = c.parametros
+    if "tarifas" not in p:
+        return None, []  # corrida creada antes de la comparación
+    escenario = ESCENARIOS[c.escenario]
+    md = _minutos_dia(c)
+    tarifas = roble.Tarifas(**p["tarifas"])
+    estantes, sucesos = roble.simular(escenario.productos, _solicitudes_atendidas(c), c.minuto, md, c.semilla, c.demora_gestion or 0)
+    ids = p["meds"]
+    meds = _medicamentos(db, c)
+
+    # SALVAMED: un envío por pedido realizado; si el pedido trae varios medicamentos, el envío se reparte entre ellos.
+    envios, numero, n_envios = [0.0] * len(ids), [0] * len(ids), 0
+    for pedido in db.scalars(select(Pedido).where(Pedido.corrida_id == c.id, Pedido.realizado_en.is_not(None), Pedido.estado != CANCELADO)):
+        n_envios += 1
+        lineas = pedidos.lineas_de(db, pedido)
+        for _, m in lineas:
+            envios[ids.index(m.id)] += pedido.costo_envio / len(lineas)
+            numero[ids.index(m.id)] += 1
+    despachado = dict(
+        db.execute(
+            select(DespachoLinea.medicamento_id, func.sum(DespachoLinea.cantidad))
+            .join(Despacho, Despacho.id == DespachoLinea.despacho_id)
+            .where(Despacho.corrida_id == c.id, Despacho.estado == "confirmado")
+            .group_by(DespachoLinea.medicamento_id)
+        ).all()
+    )
+    resto = max(c.minuto - p["t_area"], 0)
+
+    filas_salvamed, filas_roble = [], []
+    for i, (prod, m, e) in enumerate(zip(escenario.productos, meds, estantes)):
+        base = {"id": m.id, "nombre": m.nombre, "unidad": m.unidad}
+        dias_s = (p["area"][i] + m.existencia * resto) / md
+        camino = abiertos.get(m.id)
+        filas_salvamed.append(
+            {
+                **base,
+                "existencia": m.existencia,
+                "en_camino": camino["cantidad"] if camino else 0,
+                "llega": camino["llega"] if camino else None,
+                "pedidos": numero[i],
+                "despachado": int(despachado.get(m.id, 0)),
+                "emergencia_u": p["emergencia"][i][0],
+                "emergencia_veces": p["emergencia"][i][1],
+                "unidades_dia": dias_s,
+                **roble.costos(prod.costo, envios[i], dias_s, p["emergencia"][i][0], tarifas),
+            }
+        )
+        dias_r = e.area / md
+        filas_roble.append(
+            {
+                **base,
+                "existencia": e.existencia,
+                "en_camino": e.en_camino,
+                "llega": momento_de(c, e.llega).strftime("%d/%m %H:%M") if e.llega is not None else None,
+                "pedidos": e.pedidos,
+                "despachado": e.despachado,
+                "emergencia_u": e.emergencia_u,
+                "emergencia_veces": e.emergencia_veces,
+                "unidades_dia": dias_r,
+                **roble.costos(prod.costo, e.pedidos * tarifas.S, dias_r, e.emergencia_u, tarifas),
+            }
+        )
+    salvamed, el_roble = _lado(filas_salvamed), _lado(filas_roble)
+    salvamed["envios"], el_roble["envios"] = n_envios, el_roble["pedidos"]
+    recargo = f"+{tarifas.recargo * 100:g} %"
+    roble_eventos = _agrupar(
+        c,
+        [
+            (s.minuto, s.tipo, meds[s.indice].id, s.cantidad,
+             f"Se acabó {meds[s.indice].nombre}: piden {s.cantidad} a ojo, llega el {momento_de(c, s.llega):%d/%m %H:%M}"
+             if s.tipo == "agotado" else f"Llegó el pedido de {meds[s.indice].nombre}: +{s.cantidad}")
+            for s in sorted(sucesos, key=lambda s: s.minuto)
+        ],
+        meds,
+        recargo,
+    )
+    importantes = db.scalars(
+        select(EventoSim)
+        .where(EventoSim.corrida_id == c.id, EventoSim.tipo.in_(("aviso", "pedido", "recepcion", "faltante")))
+        .order_by(EventoSim.id.desc())
+        .limit(60)
+    ).all()
+    salvamed_eventos = _agrupar(
+        c,
+        [(ev.minuto, "emergencia" if ev.tipo == "faltante" else ev.tipo, ev.medicamento_id, ev.cantidad or 0, ev.texto) for ev in reversed(importantes)],
+        meds,
+        recargo,
+    )
+    ahorro = el_roble["total"] - salvamed["total"]
+    return {
+        "tarifas": {"S": tarifas.S, "tasa": tarifas.tasa, "A": tarifas.A, "recargo": tarifas.recargo},
+        "salvamed": {**salvamed, "eventos": salvamed_eventos},
+        "roble": {**el_roble, "eventos": roble_eventos},
+        "demanda": {"salvamed": salvamed["despachado"] + salvamed["emergencia_u"], "roble": el_roble["despachado"] + el_roble["emergencia_u"]},
+        "ahorro": ahorro,
+        "ahorro_pct": ahorro / el_roble["total"] * 100 if el_roble["total"] > 0 else None,
+    }, estantes
+
+
+def serie(db: Session, c: Corrida, medicamento_id: int, estantes_roble: list | None = None) -> dict:
+    """Existencia en el tiempo (en minutos de jornada), R e IS de cada día, pedidos y recepciones.
+
+    También la existencia del Roble con las mismas solicitudes, para dibujarlas juntas."""
     puntos = [
         [round(minuto_de(c, mv.fecha), 2), mv.existencia_despues, mv.tipo]
         for mv in db.scalars(select(Movimiento).where(Movimiento.medicamento_id == medicamento_id).order_by(Movimiento.fecha, Movimiento.id))
@@ -757,7 +961,13 @@ def serie(db: Session, c: Corrida, medicamento_id: int) -> dict:
             marcas.append([round(minuto_de(c, pedido.realizado_en), 2), "pedido", f"Pedido {linea.cantidad_pedida}"])
     for mv in db.scalars(select(Movimiento).where(Movimiento.medicamento_id == medicamento_id, Movimiento.tipo == "recepcion")):
         marcas.append([round(minuto_de(c, mv.fecha), 2), "recepcion", f"+{mv.cantidad}"])
-    return {"medicamento_id": medicamento_id, "puntos": puntos, "planes": planes, "marcas": marcas, "ahora": c.minuto, "minutos_dia": md}
+    roble_puntos = []
+    if estantes_roble and medicamento_id in c.parametros["meds"]:
+        roble_puntos = estantes_roble[c.parametros["meds"].index(medicamento_id)].puntos
+    return {
+        "medicamento_id": medicamento_id, "puntos": puntos, "planes": planes, "marcas": marcas, "roble": roble_puntos,
+        "ahora": c.minuto, "minutos_dia": md,
+    }
 
 
 def corridas_anteriores(db: Session, limite: int = 8) -> list[dict]:

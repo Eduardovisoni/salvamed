@@ -13,6 +13,7 @@
   var reloj = { minuto: 0, recibido: 0, velocidad: 1, corriendo: false, md: 720, mps: 10 };
   var colores = ["#0f766e", "#7c3aed", "#b45309", "#2563eb", "#be185d", "#15803d", "#c2410c", "#0e7490"];
   var servicios = [];
+  var escalasLado = {};
 
   function $(id) { return document.getElementById(id); }
   function dinero(v) { return "Q " + Number(v || 0).toLocaleString("es-GT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
@@ -73,6 +74,7 @@
     pintarEstantes(previo);
     pintarDinero();
     var nuevos = datos.eventos.filter(function (e) { return e.id > ultimoEvento; });
+    pintarComparacion();
     if (nuevos.length) {
       ultimoEvento = nuevos[nuevos.length - 1].id;
       pintarEventos(nuevos);
@@ -228,7 +230,138 @@
     $("caja-total").textContent = d.unidades + " unidades";
   }
 
-  var iconos = { despacho: "💊", aviso: "⚠️", pausa: "⏸", pedido: "✅", reanudar: "▶", recepcion: "🚚", cierre: "🌙", faltante: "❌", inicio: "🏁", aumento: "📈" };
+  // ------------------------------------------------------------ El Roble hoy contra SALVAMED
+
+  function pintarComparacion() {
+    var k = estado.comparacion;
+    $("comparar").hidden = !k;
+    $("comparar-vieja").hidden = !!k;
+    if (!k) return;
+    var ahorro = k.ahorro;
+    $("ahorro-etiqueta").textContent = ahorro >= 0 ? "Ahorro con SALVAMED" : "Con SALVAMED cuesta más:";
+    $("ahorro").textContent = dinero(Math.abs(ahorro));
+    $("ahorro").className = "comparar__monto" + (ahorro < 0 ? " comparar__monto--menos" : "");
+    $("ahorro-pct").textContent = ahorro > 0 && k.ahorro_pct !== null ? num(k.ahorro_pct, 0) + " % menos que El Roble hoy" : "";
+    var recargo = num(k.tarifas.recargo * 100, 0);
+    var cuadra = k.demanda.roble === k.demanda.salvamed;
+    var supuestos = $("supuestos");
+    supuestos.innerHTML = "";
+    [
+      [(cuadra ? "✓ " : "✗ ") + "Mismas solicitudes: " + num(k.demanda.salvamed, 0) + " unidades pedidas por los servicios en los dos lados", cuadra ? "cuadra" : "texto-pedir"],
+      ["Lo que no hay se compra de emergencia a +" + recargo + " %"],
+      ["Cada pedido tarda entre L−1 y L+1 días"],
+      [num(estado.reloj.minuto / estado.reloj.minutos_dia, 1) + " días simulados"],
+    ].forEach(function (s) { supuestos.appendChild(el("li", s[1] || "", s[0])); });
+    pintarLado("roble", k.roble, k, recargo);
+    pintarLado("salvamed", k.salvamed, k, recargo);
+    pintarSucesos($("eventos-roble"), k.roble.eventos);
+    pintarSucesos($("eventos-salvamed"), k.salvamed.eventos);
+    pintarTabla(k);
+  }
+
+  function pintarLado(clave, l, k, recargo) {
+    var cuentas = $("cuentas-" + clave);
+    cuentas.innerHTML = "";
+    [
+      ["Costo de inventario", dinero(l.total), "pedir + mantener + emergencias", "lado__total"],
+      ["Pedidos", dinero(l.pedir), l.envios + (l.envios === 1 ? " envío × " : " envíos × ") + dinero(k.tarifas.S)],
+      ["Mantener", dinero(l.mantener), "lo guardado, " + num(k.tarifas.tasa * 100, 0) + " % al año"],
+      ["Emergencias", dinero(l.emergencia), l.emergencia_u + " unidades a +" + recargo + " %", l.emergencia_u ? "lado__alerta" : ""],
+    ].forEach(function (c) {
+      var div = el("div", c[3] || "");
+      div.appendChild(el("dt", "", c[0]));
+      var dd = el("dd", "", c[1]);
+      dd.appendChild(el("small", "", c[2]));
+      div.appendChild(dd);
+      cuentas.appendChild(div);
+    });
+    var lista = $("meds-" + clave);
+    var otro = k[clave === "roble" ? "salvamed" : "roble"].filas;
+    l.filas.forEach(function (f, i) {
+      var fila = lista.children[i];
+      if (!fila) {
+        fila = el("li", "lado__med");
+        var nombre = el("span", "lado__nombre", f.nombre);
+        nombre.appendChild(el("b", "lado__emerg"));
+        fila.appendChild(nombre);
+        var barra = el("span", "lado__barra");
+        barra.appendChild(el("span", "lado__relleno"));
+        barra.appendChild(el("span", "lado__camino"));
+        fila.appendChild(barra);
+        fila.appendChild(el("span", "lado__numero"));
+        fila.appendChild(el("span", "lado__nota"));
+        lista.appendChild(fila);
+      }
+      var escala = Math.max(escalasLado[f.id] || 0, f.existencia + f.en_camino, otro[i].existencia + otro[i].en_camino, 1);
+      escalasLado[f.id] = escala;
+      fila.className = "lado__med" + (f.existencia === 0 ? " lado__med--agotado" : "");
+      fila.querySelector(".lado__relleno").style.width = Math.min(f.existencia / escala * 100, 100) + "%";
+      var camino = fila.querySelector(".lado__camino");
+      camino.style.left = Math.min(f.existencia / escala * 100, 100) + "%";
+      camino.style.width = Math.min(f.en_camino / escala * 100, 100) + "%";
+      fila.querySelector(".lado__numero").textContent = f.existencia;
+      var emerg = fila.querySelector(".lado__emerg");
+      emerg.textContent = f.emergencia_u ? "🛒 " + f.emergencia_u : "";
+      emerg.title = f.emergencia_u ? f.emergencia_u + " " + f.unidad + " comprados de emergencia" : "";
+      var nota = fila.querySelector(".lado__nota");
+      nota.textContent = "";
+      if (f.existencia === 0) nota.appendChild(el("b", "", f.en_camino ? "Agotado · " : "Agotado"));
+      if (f.en_camino) nota.appendChild(document.createTextNode("🚚 +" + f.en_camino + " · " + f.llega));
+      fila.title = f.nombre + ": " + f.existencia + " " + f.unidad + (f.en_camino ? ", +" + f.en_camino + " en camino" : "") +
+        ". " + f.pedidos + " pedidos, " + f.emergencia_u + " unidades de emergencia.";
+    });
+  }
+
+  function pintarSucesos(lista, sucesos) {
+    var clave = sucesos.map(function (s) { return s.hora + s.texto; }).join("|");
+    if (lista.dataset.clave === clave) return;
+    lista.dataset.clave = clave;
+    lista.innerHTML = "";
+    if (!sucesos.length) { lista.appendChild(el("li", "sutil", "Todavía no pasa nada importante.")); return; }
+    sucesos.forEach(function (s) {
+      var li = el("li", "lado__evento--" + s.tipo);
+      li.title = s.texto;
+      li.appendChild(el("span", "evento__icono", iconos[s.tipo] || "•"));
+      li.appendChild(el("span", "evento__hora", s.hora));
+      li.appendChild(el("span", "lado__texto", s.texto));
+      lista.appendChild(li);
+    });
+  }
+
+  function pintarTabla(k) {
+    var tabla = $("tabla-comparar");
+    if (!tabla.closest("details").open) return;
+    var filas = [
+      '<thead><tr><th rowspan="2">Medicamento</th><th colspan="4" class="grupo--roble">El Roble hoy</th>' +
+        '<th colspan="4" class="grupo--salvamed">Con SALVAMED</th><th rowspan="2" class="num">Ahorro</th></tr><tr>' +
+        ["Pedidos", "Mantener", "Emergencias", "Total", "Pedidos", "Mantener", "Emergencias", "Total"].map(function (x) { return '<th class="num">' + x + "</th>"; }).join("") +
+        "</tr></thead><tbody>",
+    ];
+    function celdas(f, pedidos) {
+      return '<td class="num">' + pedidos + " · " + dinero(f.pedir) + '</td><td class="num">' + dinero(f.mantener) + '</td><td class="num">' +
+        dinero(f.emergencia) + (f.emergencia_u ? " (" + f.emergencia_u + " u)" : "") + '</td><td class="num total">' + dinero(f.total) + "</td>";
+    }
+    function ahorro(v) {
+      if (Math.abs(v) < 0.005) return '<td class="num">' + dinero(0) + "</td>";
+      return '<td class="num ' + (v > 0 ? "positivo" : "negativo") + '">' + (v < 0 ? "−" : "") + dinero(Math.abs(v)) + "</td>";
+    }
+    k.roble.filas.forEach(function (r, i) {
+      var s = k.salvamed.filas[i];
+      filas.push("<tr><td>" + esc(r.nombre) + "</td>" + celdas(r, r.pedidos) + celdas(s, s.pedidos) + ahorro(r.total - s.total) + "</tr>");
+    });
+    filas.push("</tbody><tfoot><tr><td>Total</td>" + celdas(k.roble, k.roble.envios) + celdas(k.salvamed, k.salvamed.envios) + ahorro(k.ahorro) + "</tr></tfoot>");
+    tabla.innerHTML = filas.join("");
+    $("formulas").textContent =
+      "Pedidos = envíos × " + dinero(k.tarifas.S) + " (SALVAMED junta en un envío los medicamentos del mismo proveedor que piden a la vez; ese envío se reparte entre ellos). " +
+      "Mantener = costo × " + num(k.tarifas.tasa * 100, 0) + " % ÷ " + num(k.tarifas.A, 0) + " días × unidades guardadas cada día. " +
+      "Emergencias = unidades que no había × costo × " + num(k.tarifas.recargo * 100, 0) + " %. " +
+      "No incluye el precio normal de los medicamentos, igual que CT en la clase 12. " +
+      "A mitad de la corrida un medicamento puede salir en rojo: SALVAMED ya pagó el envío de un pedido que El Roble todavía no hace porque aún no se le acaba.";
+  }
+
+  function esc(texto) { var d = document.createElement("div"); d.textContent = texto; return d.innerHTML; }
+
+  var iconos = { despacho: "💊", aviso: "⚠️", pausa: "⏸", pedido: "✅", reanudar: "▶", recepcion: "🚚", cierre: "🌙", faltante: "❌", inicio: "🏁", aumento: "📈", agotado: "🔴", emergencia: "🛒" };
 
   function textoEvento(e) {
     if (e.tipo === "despacho") {
@@ -334,7 +467,7 @@
     if (!estado) return;
     var s = estado.serie;
     var t = porId(s.medicamento_id);
-    $("grafica-titulo").textContent = "Existencias de " + (t ? t.nombre + " " + t.presentacion : "") + " en el tiempo";
+    $("grafica-titulo").textContent = "Existencias de " + (t ? t.nombre + " " + t.presentacion : "") + ": SALVAMED y El Roble hoy";
     var svg = $("grafica");
     var ancho = 900, alto = 210, margen = 34;
     var md = s.minutos_dia;
@@ -342,6 +475,7 @@
     var tope = 1;
     s.puntos.forEach(function (p) { tope = Math.max(tope, p[1]); });
     s.planes.forEach(function (p) { tope = Math.max(tope, p[2] || 0); });
+    (s.roble || []).forEach(function (p) { tope = Math.max(tope, p[1]); });
     tope *= 1.12;
     function x(m) { return margen + Math.min(m / fin, 1) * (ancho - margen - 6); }
     function y(v) { return alto - 22 - v / tope * (alto - 34); }
@@ -370,6 +504,12 @@
     });
     partes.push('<path class="grafica__is" d="' + rutaIS + '"></path>');
     partes.push('<path class="grafica__r" d="' + rutaR + '"></path>');
+    var rutaRoble = "";
+    (s.roble || []).forEach(function (p, i) {
+      rutaRoble += i === 0 ? "M" + x(p[0]) + " " + y(p[1]) : " H" + x(p[0]) + " V" + y(p[1]);
+    });
+    if (rutaRoble) rutaRoble += " H" + x(s.ahora);
+    partes.push('<path class="grafica__roble" d="' + rutaRoble + '"></path>');
     partes.push('<path class="grafica__existencia" d="' + ruta + '"></path>');
     s.marcas.forEach(function (m) {
       var cx = x(m[0]);
@@ -393,6 +533,9 @@
   });
   document.querySelectorAll("[data-accion]").forEach(function (b) {
     b.addEventListener("click", function () { controlar(b.dataset.accion); });
+  });
+  document.querySelector(".comparar__detalle").addEventListener("toggle", function () {
+    if (estado && estado.comparacion) pintarTabla(estado.comparacion);
   });
   $("confirmar-web").addEventListener("click", function () {
     var boton = this;
