@@ -983,3 +983,112 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: 0.85em; backgr
 .plegable--interno > summary:hover { border-color: var(--borde); }
 .plegable--interno[open] > summary { margin-bottom: 8px; }
 .grupo--plegable .grupo__descripcion { margin-bottom: 14px; }
+
+/* ---------------------------------------------------------------- Simulación · Roble hoy contra SALVAMED */
+.sim-comparacion { display: grid; grid-template-columns: 190px minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: stretch; margin-bottom: 16px; }
+.sim-fuente { display: grid; grid-template-rows: 1fr 56px; gap: 8px; }
+.sim-fuente .sim-servicios { height: auto; }
+.sim-fuente .sim-pasillo { height: 56px; }
+.sim-lado-panel { position: relative; display: grid; grid-template-rows: auto auto auto 1fr; gap: 10px; overflow: hidden; transition: box-shadow 0.3s; }
+.sim-lado-panel--roble { border-color: #d4d4d8; }
+.sim-lado-panel--salvamed { border-color: #99f6e4; box-shadow: 0 0 0 1px #ccfbf1 inset; }
+.sim-lado-panel--falta { animation: falta-panel 0.9s ease-out; }
+@keyframes falta-panel { 0% { box-shadow: inset 0 0 0 3px #fca5a5; } 100% { box-shadow: none; } }
+.sim-lado-panel__cabeza { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.sim-lado-panel__cabeza h2 { margin: 0; font-size: 1.05rem; }
+.sim-lado-panel__cabeza .sutil { margin: 2px 0 0; font-size: 0.78rem; }
+.sim-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip--fijo { cursor: default; }
+.chip--alerta { background: var(--pedir-fondo); border-color: var(--pedir-borde); color: #991b1b; }
+.sim-estantes--compactos { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.sim-estantes--compactos .estante { padding: 8px 10px; }
+.sim-estantes--compactos .estante__numero { font-size: 1.25rem; }
+.sim-estantes--compactos .estante__pie { font-size: 0.7rem; }
+.estante:disabled { cursor: default; opacity: 1; }
+
+/* Estantes vacíos y animaciones de faltante y llegada */
+.estante--verde { border-color: #a7f3d0; }
+.estante--verde .estante__relleno { background: #10b981; }
+.estante--amarillo { background: var(--pronto-fondo); border-color: #fcd34d; }
+.estante--amarillo .estante__relleno { background: #f59e0b; }
+.estante--rojo { background: var(--pedir-fondo); border-color: var(--pedir-borde); }
+.estante--rojo .estante__relleno { background: #ef4444; }
+.estante--vacio { background: #f4f4f5; border-color: #d4d4d8; color: #52525b; }
+.estante--vacio .estante__numero { color: #dc2626; }
+.estante--falta { animation: falta 0.8s ease-out; }
+@keyframes falta { 0% { box-shadow: 0 0 0 3px #ef4444; transform: translateX(0); } 25% { transform: translateX(-3px); } 50% { transform: translateX(3px); } 100% { box-shadow: none; transform: none; } }
+.estante--llena .estante__relleno { animation: llena 0.9s ease-out; }
+@keyframes llena { 0% { filter: brightness(1.6); transform: scaleY(0.6); } 100% { filter: none; transform: none; } }
+.estante__cambio { display: block; margin-top: 4px; font-size: 0.68rem; color: #0f766e; font-weight: 500; animation: aparece 0.4s ease-out; }
+@keyframes aparece { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
+.sim-servicio--falta { animation: falta-servicio 0.9s ease-out; }
+@keyframes falta-servicio { 0% { background: #fee2e2; color: #991b1b; } 100% { background: transparent; } }
+
+/* El camión cruza el panel el día de viaje */
+
+/* Marcador */
+.sim-marcador { margin-bottom: 16px; }
+.sim-marcador .tabla td.num, .sim-resumen .tabla td.num { font-variant-numeric: tabular-nums; }
+.fila--total td { font-weight: 600; border-top: 2px solid var(--borde-fuerte); }
+
+/* Gráfica chica de μD y σD */
+
+/* Bitácora */
+.evento--lista, .evento--camion, .evento--camion_sale { background: #fff7ed; }
+.evento--no_alcanza, .evento--emergencia { background: var(--pedir-fondo); }
+.evento--emergencia_llega, .evento--espera { background: #f3f7ff; }
+.evento--anotado { background: var(--fondo); }
+.evento--estimacion { background: #f0fdfa; }
+.evento--roble .evento__icono { filter: grayscale(0.6); }
+.acciones--izquierda { justify-content: flex-start; margin-top: 8px; }
+
+/* Resumen final */
+.sim-resumen { border: 0; border-radius: var(--radio); padding: 24px; width: min(920px, 94vw); box-shadow: var(--sombra-flotante); }
+.sim-resumen::backdrop { background: rgba(24, 24, 27, 0.55); }
+.sim-resumen__cabeza { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.sim-resumen__cabeza h2 { margin: 0; }
+.sim-resumen__tarjetas { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0; }
+.sim-resumen__tarjeta { border: 1px solid var(--borde); border-radius: var(--radio); padding: 14px 16px; }
+.sim-resumen__tarjeta h3 { margin: 0 0 6px; font-size: 0.95rem; }
+.sim-resumen__tarjeta--roble { background: #fafafa; }
+.sim-resumen__tarjeta--salvamed { background: #f0fdfa; border-color: #99f6e4; }
+.sim-resumen__grande { margin: 0; font-size: 1.9rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.sim-resumen__lista { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 0.85rem; }
+
+@media (max-width: 1000px) {
+  .sim-comparacion { grid-template-columns: 1fr; }
+  .sim-fuente { grid-template-rows: auto 48px; }
+  .sim-resumen__tarjetas { grid-template-columns: 1fr; }
+}
+.sim-lado-panel__cabeza { flex-wrap: wrap; }
+
+/* Camión 2D que reparte estante por estante */
+.reparto { position: absolute; inset: 0; pointer-events: none; z-index: 30; overflow: hidden; }
+.reparto__aviso { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background: #fff7ed; border: 1px solid #fdba74; color: #9a3412; border-radius: 999px; padding: 5px 14px; font-weight: 600; font-size: 0.9rem; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,.08); animation: aparece 0.3s ease-out; }
+.camion2d { position: absolute; top: 0; left: 0; transition: transform 0.5s cubic-bezier(.45, .05, .35, 1); filter: drop-shadow(0 3px 4px rgba(0,0,0,.18)); will-change: transform; }
+.camion2d--quieto { transition: none; }
+.camion2d--anda .camion2d__rueda { animation: gira 0.4s linear infinite; }
+.camion2d--anda svg { animation: rebota 0.25s ease-in-out infinite alternate; }
+@keyframes gira { to { transform: rotate(360deg); } }
+@keyframes rebota { from { transform: translateY(0); } to { transform: translateY(-1.5px); } }
+.caja-reparto { position: absolute; top: 0; left: 0; min-width: 44px; padding: 4px 8px; border-radius: 6px; background: var(--color, #0f766e); color: #fff; font-weight: 700; font-size: 0.85rem; text-align: center; white-space: nowrap; box-shadow: 0 3px 6px rgba(0,0,0,.2); transition: transform 0.38s cubic-bezier(.3, .6, .4, 1); }
+.caja-reparto::before { content: "📦 "; }
+.caja-reparto--cae { opacity: 0; transition: opacity 0.25s; }
+.sim-lado-panel--recibe { animation: recibe 1.6s ease-out; }
+@keyframes recibe { 0% { box-shadow: inset 0 0 0 4px #fbbf24; } 100% { box-shadow: none; } }
+
+/* Más grande: la pantalla es para exponer */
+.sim-comparacion { grid-template-columns: 150px minmax(0, 1fr) minmax(0, 1fr); }
+.sim-servicio__nombre { font-size: 0.78rem; }
+.sim-estantes--compactos .estante { padding: 12px 14px; }
+.sim-estantes--compactos .estante__nombre { font-size: 1rem; }
+.sim-estantes--compactos .estante__numero { font-size: 1.9rem; }
+.sim-estantes--compactos .estante__pie { font-size: 0.82rem; }
+.sim-estantes--compactos .estante__barra { height: 12px; }
+.sim-lado-panel__cabeza h2 { font-size: 1.25rem; }
+.sim-marcador .tabla { font-size: 0.95rem; }
+.estante__aviso { display: block; margin-top: 4px; font-size: 0.72rem; color: #9a3412; font-weight: 500; }
+.reparto__aviso--urgente { background: #fef2f2; border-color: #fca5a5; color: #991b1b; }
+.evento--emergencia { background: var(--pedir-fondo); }
+.evento--anotado { background: var(--fondo); }
+.evento--roble .evento__icono { filter: grayscale(0.6); }

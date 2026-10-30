@@ -58,6 +58,20 @@ def texto_reposicion(db: Session, pedido: Pedido, evaluaciones: dict | None = No
     return "\n".join(partes)
 
 
+def texto_emergencia(m, pedido: Pedido, servicio: str, falta: int, cantidad: int, llegada, recargo: float) -> str:
+    """Aviso informativo: ya no había y un servicio crítico lo necesitaba; la emergencia ya se registró."""
+    return "\n".join(
+        [
+            _encabezado(m.corrida_id),
+            f"🚨 Emergencia · {m.nombre_completo} · Pedido #{pedido.id}",
+            f"{servicio} lo necesitó y ya no había: faltaron {falta} {m.unidad}.",
+            f"Se compró de emergencia {cantidad} {m.unidad}: lo que faltó más lo que se usa mientras llegaría un pedido normal.",
+            f"Llega a las {hora_local(llegada):%H:%M}. Recargo: Q {recargo:,.2f}.",
+            "Mensaje informativo: no hay que responder.",
+        ]
+    )
+
+
 def texto_aumento(e) -> str:
     a, p, m = e.aumento, e.plan, e.m
     partes = [

@@ -5,6 +5,7 @@
 <div class="titulo-pagina">
   <div>
     <h1>Simulación</h1>
+    <p class="sutil">El Roble hoy contra El Roble con SALVAMED, con las mismas solicitudes de los servicios.</p>
   </div>
   <details class="nueva-corrida">
     <summary class="boton">{% if corrida %}Reiniciar o cambiar escenario{% else %}Nueva corrida{% endif %}</summary>
@@ -16,13 +17,8 @@
         </select>
       </div>
       <div class="campo">
-        <label for="semilla">Semilla <span class="sutil">(misma semilla = mismas ventas)</span></label>
+        <label for="semilla">Semilla <span class="sutil">(misma semilla = mismas solicitudes)</span></label>
         <input class="campo__entrada" id="semilla" name="semilla" type="number" min="0" step="1" value="{{ corrida.semilla if corrida else 2026 }}">
-      </div>
-      <div class="campo">
-        <label for="demora">Demora de gestión del encargado de compras (horas virtuales)</label>
-        <input class="campo__entrada" id="demora" name="demora" type="number" min="0" max="72" step="0.5" value="{{ (corrida.demora_gestion / 60) | corto if corrida else 0 }}">
-        <span class="campo__ayuda">0 = respuesta inmediata (supuesto). Úsalo para comparar corridas con la misma semilla.</span>
       </div>
       <button class="boton boton--primario" type="submit">Empezar corrida nueva</button>
     </form>
@@ -31,7 +27,7 @@
 
 {% if not corrida %}
 <section class="panel vacio">
-  <p>No hay una corrida activa. Elige un escenario y empieza: el inventario arranca sin historia y el plan aparece cuando hay días completos de despachos.</p>
+  <p>No hay una corrida activa. Elige un escenario y empieza: los dos inventarios arrancan iguales y el plan de SALVAMED aparece cuando hay días completos de despachos.</p>
   <ul class="politica" style="text-align:left;max-width:720px;margin:0 auto">
     {% for clave, e in escenarios.items() %}<li><strong>{{ e.titulo }}.</strong> {{ e.descripcion }}</li>{% endfor %}
   </ul>
@@ -52,9 +48,11 @@
       </div>
       <button class="boton" type="button" data-accion="dia">Siguiente día</button>
       <button class="boton" type="button" data-accion="evento">Siguiente evento</button>
+      <button class="boton" type="button" id="ver-resumen">Ver resumen</button>
+      <button class="boton" type="button" id="terminar">Terminar demostración</button>
     </div>
     <div class="sim-estado" id="estado-reloj">En pausa</div>
-    <p class="sim-escala sutil">×1: 1 s real = {{ minutos_por_segundo }} min simulados (un día del sanatorio ≈ <span id="seg-dia">72</span> s). La velocidad no cambia los resultados.</p>
+    <p class="sim-escala sutil">×1: 1 s real = {{ minutos_por_segundo }} min simulados (un día ≈ <span id="seg-dia">72</span> s). La velocidad no cambia los resultados.</p>
   </section>
 
   <section class="sim-pausa" id="pausa" hidden>
@@ -62,7 +60,7 @@
       <span class="sim-pausa__icono" aria-hidden="true">⏸</span>
       <div>
         <h2 id="pausa-titulo">Pausa de exposición</h2>
-        <p class="sutil">El reloj virtual se detuvo en el instante del aviso para explicarlo. En el sanatorio real los servicios siguen pidiendo mientras el encargado de compras responde; aquí se supone <span id="pausa-supuesto">respuesta inmediata en tiempo virtual</span>.</p>
+        <p class="sutil">El reloj virtual se detuvo en el instante del aviso para explicarlo. En el sanatorio real los servicios siguen pidiendo mientras el encargado responde; aquí se supone <span id="pausa-supuesto">respuesta inmediata en tiempo virtual</span>.</p>
       </div>
     </div>
     <div class="sim-pausa__cuerpo">
@@ -77,20 +75,49 @@
     </div>
   </section>
 
+  <section class="sim-comparacion">
+    <div class="sim-fuente">
+      <ul class="sim-servicios" id="servicios" aria-label="Servicios del sanatorio"></ul>
+      <div class="sim-pasillo" id="pasillo" aria-hidden="true"></div>
+    </div>
+    <section class="panel sim-lado-panel sim-lado-panel--roble" id="lado-roble">
+      <header class="sim-lado-panel__cabeza">
+        <div>
+          <h2>El Roble hoy</h2>
+          <p class="sutil">Sin modelo: cuando ya se va a acabar, bodega avisa de boca en boca y al día siguiente el gerente pide «lo de siempre» por mensajería.</p>
+        </div>
+      </header>
+      <div class="sim-chips" id="chips-roble"></div>
+      <div class="sim-estantes sim-estantes--compactos" id="estantes-roble"></div>
+    </section>
+    <section class="panel sim-lado-panel sim-lado-panel--salvamed" id="lado-salvamed">
+      <header class="sim-lado-panel__cabeza">
+        <div>
+          <h2>El Roble con SALVAMED</h2>
+          <p class="sutil">Modelo de la clase 12: avisa por Telegram al llegar a R y pide Q, por la misma mensajería.</p>
+        </div>
+      </header>
+      <div class="sim-chips" id="chips-salvamed"></div>
+      <div class="sim-estantes sim-estantes--compactos" id="estantes"></div>
+    </section>
+  </section>
+
+  <section class="panel sim-marcador">
+    <div class="sim-grafica__cabeza">
+      <h2>Marcador</h2>
+      <span class="sutil" id="marcador-nota">Mismas solicitudes para los dos lados · costos simulados con supuestos declarados</span>
+    </div>
+    <div class="tabla-envoltura tabla-envoltura--plana">
+      <table class="tabla tabla--compacta" id="marcador"></table>
+    </div>
+  </section>
+
   <div class="sim-rejilla">
     <div class="sim-principal">
-      <section class="panel sim-escena">
-        <div class="sim-tienda" id="tienda">
-          <ul class="sim-servicios" id="servicios" aria-label="Servicios del sanatorio"></ul>
-          <div class="sim-pasillo" id="pasillo" aria-hidden="true"></div>
-          <div class="sim-caja"><span aria-hidden="true">💊</span> Inventario<small id="caja-total"></small></div>
-        </div>
-        <div class="sim-estantes" id="estantes"></div>
-      </section>
       <section class="panel sim-grafica__panel">
         <div class="sim-grafica__cabeza">
           <h2 id="grafica-titulo">Existencias en el tiempo</h2>
-          <span class="sutil">Elige un medicamento en los estantes para verlo aquí.</span>
+          <span class="sutil">Elige un medicamento en los estantes de SALVAMED para verlo aquí.</span>
         </div>
         <svg id="grafica" class="sim-grafica" viewBox="0 0 900 210" preserveAspectRatio="none" role="img" aria-label="Existencia, punto de reorden e inventario de seguridad en el tiempo"></svg>
         <div class="grafica__leyenda">
@@ -105,29 +132,41 @@
     </div>
 
     <aside class="sim-lado">
-      <section class="panel">
-        <h2>Costos <span class="sutil">(simulados)</span></h2>
-        <dl class="cuentas" id="dinero"></dl>
-      </section>
       <section class="panel sim-eventos">
         <h2>Lo que pasa</h2>
         <ol id="eventos" class="eventos"></ol>
       </section>
     </aside>
   </div>
+
+  <dialog class="sim-resumen" id="resumen">
+    <div class="sim-resumen__cabeza">
+      <h2>Resumen de la demostración</h2>
+      <button class="boton boton--chico" type="button" id="cerrar-resumen">Cerrar</button>
+    </div>
+    <p class="sutil" id="resumen-nota"></p>
+    <div class="sim-resumen__tarjetas">
+      <div class="sim-resumen__tarjeta sim-resumen__tarjeta--roble" id="resumen-roble"></div>
+      <div class="sim-resumen__tarjeta sim-resumen__tarjeta--salvamed" id="resumen-salvamed"></div>
+    </div>
+    <div class="tabla-envoltura tabla-envoltura--plana">
+      <table class="tabla tabla--compacta" id="resumen-tabla"></table>
+    </div>
+    <div class="acciones"><button class="boton" type="button" id="copiar-resumen">Copiar tabla para el informe</button></div>
+  </dialog>
 </div>
 {% endif %}
 
 {% if anteriores %}
 <section class="panel">
   <h2>Corridas</h2>
-  <p class="sutil">Con la misma semilla las solicitudes son las mismas: cambiar la demora de gestión permite comparar faltantes y pedidos. Son escenarios simulados, no ahorros reales del sanatorio.</p>
+  <p class="sutil">Con la misma semilla las solicitudes son las mismas. Son escenarios simulados, no ahorros reales del sanatorio.</p>
   <div class="tabla-envoltura tabla-envoltura--plana">
     <table class="tabla tabla--compacta">
-      <thead><tr><th>#</th><th>Escenario</th><th class="num">Semilla</th><th class="num">Demora (h)</th><th class="num">Días completos</th><th class="num">Consumo</th><th class="num">Pedidos</th><th class="num">Faltantes</th><th>Estado</th></tr></thead>
+      <thead><tr><th>#</th><th>Escenario</th><th class="num">Semilla</th><th class="num">Días completos</th><th class="num">Consumo</th><th class="num">Pedidos SALVAMED</th><th class="num">Faltantes SALVAMED</th><th class="num">Faltantes Roble hoy</th><th>Estado</th></tr></thead>
       <tbody>
         {% for x in anteriores %}
-        <tr><td>{{ x.id }}</td><td>{{ x.escenario }}</td><td class="num">{{ x.semilla }}</td><td class="num">{{ x.demora | corto }}</td><td class="num">{{ x.dias }}</td><td class="num">{{ x.consumido | dinero }}</td><td class="num">{{ x.pedidos }}</td><td class="num">{{ x.faltantes }}</td><td>{{ "Activa" if x.estado == "activa" else "Terminada" }}</td></tr>
+        <tr><td>{{ x.id }}</td><td>{{ x.escenario }}</td><td class="num">{{ x.semilla }}</td><td class="num">{{ x.dias }}</td><td class="num">{{ x.consumido | dinero }}</td><td class="num">{{ x.pedidos }}</td><td class="num">{{ x.faltantes }}</td><td class="num">{{ x.faltantes_roble }}</td><td>{{ "Activa" if x.estado == "activa" else "Terminada" }}</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -137,5 +176,5 @@
 {% endblock %}
 
 {% block scripts %}
-{% if corrida %}<script src="/static/simulacion.js?v=5"></script>{% endif %}
+{% if corrida %}<script src="/static/simulacion.js?v=6"></script>{% endif %}
 {% endblock %}

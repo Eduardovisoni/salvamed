@@ -22,6 +22,8 @@ def pantalla(request: Request, db: Session = Depends(sesion)):
             "corrida": simulacion.corrida_activa(db),
             "escenarios": simulacion.ESCENARIOS,
             "velocidades": simulacion.VELOCIDADES,
+            "aviso_roble": simulacion.AVISO_ROBLE,
+            "recargo": simulacion.RECARGO_EMERGENCIA,
             "anteriores": simulacion.corridas_anteriores(db),
             "minutos_por_segundo": simulacion.MINUTOS_POR_SEGUNDO,
         },
