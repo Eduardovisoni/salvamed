@@ -42,7 +42,8 @@ GRUPOS_MEDICAMENTO = (
             Campo("presentacion", "Presentación", tipo="texto", largo_max=80, marcador="Ej. 1 g, 500 mg/5 ml"),
             Campo("unidad", "Se cuenta en", tipo="texto", obligatorio=True, largo_max=40, marcador="vial, ampolla, frasco…"),
             Campo("sku", "Código interno", tipo="texto", largo_max=40, ayuda="Opcional. Sirve para un lector de códigos."),
-            Campo("clasificacion", "Clasificación", tipo="texto", largo_max=40, marcador="Regular, Controlado…"),
+            Campo("clasificacion", "Clasificación", tipo="texto", largo_max=40, marcador="Regular, Controlado…",
+                  ayuda="«Controlado» (fentanilo, morfina, midazolam…) usa la probabilidad, el trámite y su costo de Configuración → Medicamentos controlados."),
             Campo("proveedor_id", "Proveedor", tipo="proveedor"),
         ),
     ),
@@ -117,6 +118,20 @@ GRUPOS_CONFIGURACION = (
                   ayuda="Cuántos días antes de llegar al punto de reorden (R) el medicamento pasa a «Pedir pronto», para preparar el pedido con tiempo."),
             Campo("aumento_umbral", "Aviso de aumento si el consumo reciente es × veces el anterior", obligatorio=True, minimo=1, minimo_incluido=False, maximo=10,
                   ayuda="Avisa si en los últimos 7 días se consumió esta cantidad de veces más que antes (1.5 = 50 % más) y el cambio es claro, no casualidad. Sirve para notar que μD subió antes de que el medicamento se acabe."),
+        ),
+    ),
+    Grupo(
+        "Medicamentos controlados",
+        "Estupefacientes y psicotrópicos (fentanilo, morfina, midazolam…): cada compra necesita la autorización del Ministerio de "
+        "Salud (formulario F-SI-f-13). Se aplica a los medicamentos con clasificación «Controlado». Si el medicamento tiene su propia "
+        "probabilidad, manda la suya; el trámite y su costo se suman siempre al plazo y al costo del envío.",
+        (
+            Campo("nivel_controlados", "Probabilidad de servicio (%)", simbolo="p", obligatorio=True, minimo=50, maximo=100, maximo_incluido=False,
+                  ayuda="Más alta que la general porque, sin autorización, no se pueden comprar de emergencia en una farmacia."),
+            Campo("dias_tramite_controlados", "Días del trámite de autorización", obligatorio=True, minimo=0, maximo=90,
+                  ayuda="Se suman al plazo de entrega L. Supuesto: 15 días; el Ministerio no publica un plazo oficial."),
+            Campo("costo_tramite_controlados", "Costo del trámite por pedido (Q)", simbolo="S", obligatorio=True, minimo=0,
+                  ayuda="Se suma al costo por pedido S (tiempo del químico farmacéutico, viaje a la ventanilla del Ministerio). Supuesto: Q300. Un S más alto hace que la EOQ pida más cada vez, para hacer menos trámites."),
         ),
     ),
 )

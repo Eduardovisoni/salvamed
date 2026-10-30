@@ -112,6 +112,10 @@ class Configuracion(Base):
     ventana_dias: Mapped[int] = mapped_column(Integer, default=30)
     dias_aviso: Mapped[int] = mapped_column(Integer, default=7)
     aumento_umbral: Mapped[float] = mapped_column(Float, default=1.5)
+    # Medicamentos controlados (estupefacientes y psicotrópicos): cada compra necesita autorización del MSPAS.
+    nivel_controlados: Mapped[float] = mapped_column(Float, default=99)
+    dias_tramite_controlados: Mapped[float] = mapped_column(Float, default=15)
+    costo_tramite_controlados: Mapped[float] = mapped_column(Float, default=300)
     actualizado: Mapped[datetime] = mapped_column(FechaUTC, default=ahora)
 
 

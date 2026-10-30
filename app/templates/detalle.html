@@ -9,7 +9,7 @@
   <div>
     <a class="volver" href="/medicamentos">← Inventario</a>
     <h1>{{ m.nombre }} <span class="sutil-grande">{{ m.presentacion }}</span> <span class="estado estado--{{ e.estado.clave }}">{{ e.estado.etiqueta }}</span>{% if not m.activo %} <span class="estado">Desactivado</span>{% endif %}</h1>
-    <p class="sutil">{{ u }}{% if m.sku %} · {{ m.sku }}{% endif %}{% if proveedor %} · {{ proveedor.nombre }}{% endif %}</p>
+    <p class="sutil">{{ u }}{% if m.sku %} · {{ m.sku }}{% endif %}{% if proveedor %} · {{ proveedor.nombre }}{% endif %}{% if controlado %} · 🔒 Controlado: cada compra necesita autorización del Ministerio de Salud (F-SI-f-13){% endif %}</p>
   </div>
   <div class="acciones acciones--arriba">
     <a class="boton boton--primario" href="/?agregar={{ m.id }}">Despachar</a>

@@ -12,6 +12,7 @@ from app.ajustes import ajustes
 from app.consumo import hora_local
 from app.db import Medicamento, Mensaje, Pedido, PedidoLinea, Proveedor, ahora
 from app.modelo import punto_de_pedido
+from app.planificacion import es_controlado
 
 
 def _n(valor: float | None, decimales: int = 1) -> str:
@@ -46,6 +47,8 @@ def texto_reposicion(db: Session, pedido: Pedido, evaluaciones: dict | None = No
             f"Plazo de entrega L: {_n(linea.tiempo_entrega)} días → consumo previsto en L: {_n((linea.mu_d or 0) * (linea.tiempo_entrega or 0))}",
             f"Cantidad sugerida: {linea.cantidad_pedida} (EOQ {_n(linea.cantidad_eoq, 2)}, ajustada a paquetes de {m.unidades_paquete})",
         ]
+        if es_controlado(m):
+            partes.append("🔒 Controlado: pedir con el formulario F-SI-f-13 del Ministerio de Salud. El plazo incluye el trámite de autorización.")
         if linea.punto_reorden is not None and (linea.posicion_aviso or 0) > punto_de_pedido(linea.punto_reorden):
             partes.append("➕ Todavía no llega a R, pero ya está en «pedir pronto»: va en el mismo envío para pagarlo una sola vez.")
         if linea.mu_d and linea.tiempo_entrega and (linea.existencia_aviso or 0) / linea.mu_d < linea.tiempo_entrega:

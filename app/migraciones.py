@@ -14,7 +14,7 @@ Antes de desplegar una versión nueva en Railway conviene sacar un respaldo:
     pg_dump "$DATABASE_URL" > respaldo.sql
 """
 
-from sqlalchemy import Column, Integer, MetaData, Table, func, inspect, select
+from sqlalchemy import Column, Integer, MetaData, Table, func, inspect, select, text
 from sqlalchemy.orm import Session
 
 _meta = MetaData()
@@ -31,7 +31,16 @@ def _paso_2(conexion) -> None:
             s.flush()
 
 
-PASOS = {2: _paso_2}
+def _paso_3(conexion) -> None:
+    """Medicamentos controlados: probabilidad de servicio, días y costo del trámite de autorización."""
+    columnas = {c["name"] for c in inspect(conexion).get_columns("configuracion")}
+    for nombre, valor in (("nivel_controlados", 99), ("dias_tramite_controlados", 15), ("costo_tramite_controlados", 300)):
+        if nombre not in columnas:
+            conexion.execute(text(f"ALTER TABLE configuracion ADD COLUMN {nombre} FLOAT DEFAULT {valor}"))
+        conexion.execute(text(f"UPDATE configuracion SET {nombre} = {valor} WHERE {nombre} IS NULL"))
+
+
+PASOS = {2: _paso_2, 3: _paso_3}
 VERSION_ACTUAL = max(PASOS)
 
 

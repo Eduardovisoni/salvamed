@@ -83,6 +83,7 @@ def test_los_servicios_se_configuran(cliente, db):
         "dias_operacion_anio": "365", "hora_apertura": "0", "hora_cierre": "24", "nivel_servicio": "95",
         "tasa_mantenimiento": "25", "costo_pedido": "35", "tiempo_entrega": "3", "ventana_dias": "30",
         "dias_aviso": "7", "aumento_umbral": "1.5", "servicios": "Emergencia\nPediatría\n\nEmergencia",
+        "nivel_controlados": "99", "dias_tramite_controlados": "15", "costo_tramite_controlados": "300",
     }
     formulario.update({f"dia_{i}": "1" for i in range(7)})
     assert cliente.post("/configuracion", data=formulario, follow_redirects=False).status_code == 303

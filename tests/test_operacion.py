@@ -4,7 +4,7 @@ from sqlalchemy import func, select
 from app import dinero, inventario, pedidos
 from app.db import Despacho, Mensaje, Movimiento, Pedido, PedidoLinea, ahora
 from app.inventario import ErrorDeOperacion, LineaPedida
-from app.planificacion import evaluar
+from app.planificacion import configuracion, evaluar
 from tests.ayudas import medicamento, proveedor
 
 
@@ -192,3 +192,30 @@ def test_los_del_mismo_proveedor_en_pedir_pronto_van_en_el_mismo_envio(db):
     assert evaluaciones[b.id].estado.clave == "pronto"
     aviso = db.scalar(select(Mensaje).where(Mensaje.pedido_id == nuevos[0].id))
     assert "mismo envío" in aviso.texto
+
+
+def test_un_controlado_usa_99_y_suma_el_tramite_al_plazo_y_al_costo(db):
+    cfg = configuracion(db)
+    normal = medicamento(db, "Ketorolaco", existencia=200)
+    fentanilo = medicamento(db, "Fentanilo", existencia=200, clasificacion="Controlado")
+    a, b = evaluar(db, normal, ahora()), evaluar(db, fentanilo, ahora())
+    assert b.parametros["p"].valor == 99 and a.parametros["p"].valor == cfg.nivel_servicio
+    assert b.parametros["L"].valor == a.parametros["L"].valor + 15
+    assert b.parametros["S"].valor == a.parametros["S"].valor + 300
+    # Pedir antes y más cantidad que un medicamento normal con el mismo consumo.
+    assert b.plan.R > a.plan.R and b.plan.Q > a.plan.Q and b.plan.IS > a.plan.IS
+    assert "trámite" in b.parametros["L"].fuente
+
+
+def test_controlado_con_excepciones_propias(db):
+    # Su propia probabilidad manda; el trámite (días y costo) se suma a su plazo y a su costo de envío.
+    morfina = medicamento(db, "Morfina", existencia=200, clasificacion="estupefaciente", nivel_servicio=97, tiempo_entrega=5, costo_pedido=50)
+    e = evaluar(db, morfina, ahora())
+    assert (e.parametros["p"].valor, e.parametros["L"].valor, e.parametros["S"].valor) == (97, 20, 350)
+
+
+def test_el_aviso_de_un_controlado_lo_dice(db):
+    fentanilo = medicamento(db, "Fentanilo", existencia=5, clasificacion="Controlado")
+    _, pedido = pedidos.evaluar_reposicion(db, fentanilo, ahora())
+    aviso = db.scalar(select(Mensaje).where(Mensaje.pedido_id == pedido.id))
+    assert "F-SI-f-13" in aviso.texto

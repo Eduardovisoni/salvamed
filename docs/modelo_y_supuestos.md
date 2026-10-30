@@ -31,6 +31,29 @@ sirven para la operación y para la simulación.
 S y H **no salen del consumo**. S es lo que cuesta pedir (aquí, el envío); H es lo que cuesta tener una unidad guardada
 un año (capital inmovilizado, espacio, cadena de frío, vencimientos…). Por eso se configuran aparte.
 
+## Medicamentos controlados
+
+Los estupefacientes y psicotrópicos (fentanilo, morfina, meperidina, benzodiacepinas como el midazolam) no se compran
+como los demás. Según el Ministerio de Salud, un establecimiento de salud privado se registra y obtiene una cuota con el
+formulario F-SI-f-11 (más el reporte mensual F-SI-c-01), y pide autorización para cada compra con el F-SI-f-13, en la
+ventanilla del Ministerio (Normativa 32-2009; medicamentos.mspas.gob.gt → Sustancias controladas → Manejo y compra).
+El Ministerio no publica un plazo de respuesta.
+
+Si la clasificación del medicamento es «Controlado» (o dice estupefaciente o psicotrópico), SALVAMED usa los valores de
+Configuración → Medicamentos controlados:
+
+| Qué cambia | Valor por defecto | Por qué |
+| --- | --- | --- |
+| p | 99 % (si el medicamento no tiene su propia excepción) | Sin autorización no hay compra de emergencia en una farmacia |
+| L | Plazo de entrega **+ 15 días** de trámite | Supuesto: no hay plazo oficial publicado |
+| S | Costo del envío **+ Q300** de trámite | Supuesto: tiempo del químico farmacéutico, viaje a la ventanilla del Ministerio |
+
+Es la misma clase 12: un L más largo agranda la reserva (σL = σD · √L) y obliga a pedir antes (R = μD · L + IS); un p
+más alto sube Z; y un S más caro hace que la EOQ pida más cada vez, para hacer menos trámites al año. Ejemplo con
+4 ampollas por día, σD = 2 y Q25 por ampolla: como medicamento normal (L 3, p 95 %, S Q35) se pide al llegar a 18 y se
+piden 128; como controlado (L 18, p 99 %, S Q335) se pide al llegar a 92 y se piden 396. La cantidad no puede pasar la
+cuota que autoriza el Ministerio; SALVAMED todavía no revisa ese tope.
+
 ## Fórmulas (incisos de la clase)
 
 | Inciso | Fórmula |

@@ -9,6 +9,7 @@ Cada parámetro lleva su fuente para poder explicar de dónde sale. Si falta un
 dato, el plan queda pendiente y se dice qué falta; nunca se inventa un valor.
 """
 
+import unicodedata
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
@@ -61,8 +62,16 @@ def _num(valor: float) -> str:
     return f"{valor:,.2f}".rstrip("0").rstrip(".")
 
 
+def es_controlado(m: Medicamento) -> bool:
+    """Estupefacientes y psicotrópicos: cada compra necesita autorización del Ministerio de Salud."""
+    texto = unicodedata.normalize("NFD", (m.clasificacion or "").lower())
+    texto = "".join(c for c in texto if not unicodedata.combining(c))
+    return any(raiz in texto for raiz in ("controlad", "estupefac", "psicotrop", "sicotrop"))
+
+
 def parametros_de(m: Medicamento, proveedor: Proveedor | None, cfg: Configuracion) -> dict[str, Parametro]:
     p = {}
+    controlado = es_controlado(m)
     if m.dias_operacion_anio:
         p["A"] = Parametro(m.dias_operacion_anio, "excepción del medicamento")
     else:
@@ -70,6 +79,8 @@ def parametros_de(m: Medicamento, proveedor: Proveedor | None, cfg: Configuracio
 
     if m.nivel_servicio:
         p["p"] = Parametro(m.nivel_servicio, "excepción del medicamento")
+    elif controlado and cfg.nivel_controlados:
+        p["p"] = Parametro(cfg.nivel_controlados, "medicamento controlado: sin autorización no hay compra de emergencia")
     else:
         p["p"] = Parametro(cfg.nivel_servicio, "configuración general")
 
@@ -79,6 +90,10 @@ def parametros_de(m: Medicamento, proveedor: Proveedor | None, cfg: Configuracio
         p["L"] = Parametro(proveedor.tiempo_entrega, f"plazo del proveedor {proveedor.nombre}")
     else:
         p["L"] = Parametro(cfg.tiempo_entrega, "plazo general (supuesto: constante)")
+    # El trámite va aparte de la entrega: se suma al plazo venga de donde venga (medicamento, proveedor o general).
+    if controlado and cfg.dias_tramite_controlados:
+        dias = cfg.dias_tramite_controlados
+        p["L"] = Parametro(p["L"].valor + dias, f"{p['L'].fuente} + {_num(dias)} días del trámite de autorización (controlado)")
 
     if m.costo_pedido:
         p["S"] = Parametro(m.costo_pedido, "costo de pedido propio del medicamento")
@@ -90,6 +105,9 @@ def parametros_de(m: Medicamento, proveedor: Proveedor | None, cfg: Configuracio
         p["S"] = Parametro(proveedor.costo_envio / k, fuente)
     else:
         p["S"] = Parametro(cfg.costo_pedido, "costo general por pedido (supuesto: solo envío)")
+    if controlado and cfg.costo_tramite_controlados:
+        costo = cfg.costo_tramite_controlados
+        p["S"] = Parametro(p["S"].valor + costo, f"{p['S'].fuente} + Q{_num(costo)} del trámite de autorización (controlado)")
 
     if m.costo_mantener:
         p["H"] = Parametro(m.costo_mantener, "costo de mantener documentado")
