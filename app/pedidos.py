@@ -173,7 +173,8 @@ def evaluar_grupo(db: Session, medicamentos: list[Medicamento], momento: datetim
     No duplica: si ya hay un pedido abierto para el medicamento no crea otro. Sí
     avisa una vez si el pedido en camino ya no alcanza o si está atrasado. Si
     varios medicamentos del mismo proveedor llegan a R en la misma revisión, van
-    en un solo pedido (un solo envío y un solo mensaje).
+    en un solo pedido (un solo envío y un solo mensaje), junto con los de ese
+    proveedor que ya están en «pedir pronto».
     """
     evaluaciones = evaluar_varios(db, medicamentos, momento)
     por_proveedor: dict[int | None, list[Evaluacion]] = {}
@@ -196,7 +197,9 @@ def evaluar_grupo(db: Session, medicamentos: list[Medicamento], momento: datetim
             m.ultimo_aviso_aumento = e.hoy
             avisos.encolar(db, "aumento", avisos.texto_aumento(e), m.corrida_id, None, m.id)
     nuevos = []
-    for lista in por_proveedor.values():
+    for proveedor_id, lista in por_proveedor.items():
+        if proveedor_id is not None:
+            lista.extend(_del_mismo_envio(db, lista, evaluaciones, momento))
         pedido = crear_pedido(db, lista[0], momento)
         for e in lista[1:]:
             linea = _linea_desde(e)
@@ -209,6 +212,36 @@ def evaluar_grupo(db: Session, medicamentos: list[Medicamento], momento: datetim
         nuevos.append(pedido)
     db.commit()
     return evaluaciones, nuevos
+
+
+def _del_mismo_envio(db: Session, lista: list[Evaluacion], evaluaciones: dict[int, Evaluacion], momento: datetime) -> list[Evaluacion]:
+    """Del mismo proveedor, los que ya están en «pedir pronto» van en el mismo envío: el envío se paga una vez.
+
+    Sin esto, dos medicamentos del mismo proveedor que llegan a R con horas de diferencia generan dos envíos.
+    Las evaluaciones nuevas se agregan a `evaluaciones` para que quien llamó pueda describir cada línea.
+    """
+    from app.db import en_ambito
+
+    primero = lista[0].m
+    ya = {e.m.id for e in lista}
+    otros = list(
+        db.scalars(
+            select(Medicamento).where(
+                Medicamento.proveedor_id == primero.proveedor_id,
+                en_ambito(Medicamento.corrida_id, primero.corrida_id),
+                Medicamento.activo.is_(True),
+                Medicamento.id.not_in(ya),
+            )
+        )
+    )
+    faltan = [m for m in otros if m.id not in evaluaciones]
+    if faltan:
+        evaluaciones.update(evaluar_varios(db, faltan, momento))
+    return [
+        evaluaciones[m.id]
+        for m in otros
+        if (e := evaluaciones[m.id]).plan and e.plan.D > 0 and e.estado.clave == "pronto" and e.pedido_abierto is None and e.sugerida > 0
+    ]
 
 
 def pedidos(db: Session, corrida_id=None, estados=None, limite=100) -> list[Pedido]:

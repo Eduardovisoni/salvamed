@@ -348,7 +348,10 @@ def crear_corrida(db: Session, clave: str = "base", semilla: int | None = None, 
         ids = []
         for p in escenario.productos:
             if p.proveedor not in proveedores:
-                proveedor = Proveedor(corrida_id=corrida.id, nombre=p.proveedor, costo_envio=cfg.costo_pedido)
+                # Los medicamentos de un proveedor viajan juntos (se agrupan en el mismo envío): el costo del
+                # envío se reparte entre ellos para la EOQ de cada uno (S = envío ÷ medicamentos del proveedor).
+                juntos = sum(1 for x in escenario.productos if x.proveedor == p.proveedor)
+                proveedor = Proveedor(corrida_id=corrida.id, nombre=p.proveedor, costo_envio=cfg.costo_pedido, articulos_por_envio=juntos)
                 db.add(proveedor)
                 db.flush()
                 proveedores[p.proveedor] = proveedor
@@ -526,11 +529,12 @@ def _revisar_varios(db: Session, c: Corrida, meds: list[Medicamento], minuto: fl
         c.causas = list(c.causas or []) + [nuevo.id]
         for linea, m in pedidos.lineas_de(db, nuevo):
             e = evaluaciones[m.id]
-            _evento(
-                db, c, minuto, "aviso", m.id, linea.cantidad_pedida,
-                texto=f"{m.nombre} llegó al punto de reorden: posición {e.posicion} ≤ {e.plan.R_pedido} (R {e.plan.R:.1f} hacia arriba). Aviso enviado por Telegram.",
-                pedido=nuevo.id,
-            )
+            if e.estado.clave == "pedir":
+                texto = f"{m.nombre} llegó al punto de reorden: posición {e.posicion} ≤ {e.plan.R_pedido} (R {e.plan.R:.1f} hacia arriba). Aviso enviado por Telegram."
+            else:
+                texto = (f"➕ {m.nombre} va en el mismo envío: todavía no llega a R ({e.posicion} > {e.plan.R_pedido}), "
+                         "pero ya está en «pedir pronto»; así el envío se paga una sola vez.")
+            _evento(db, c, minuto, "aviso", m.id, linea.cantidad_pedida, texto=texto, pedido=nuevo.id)
         _evento(db, c, minuto, "pausa", texto=f"Reloj en pausa de exposición: esperando «Pedido realizado» del pedido #{nuevo.id}.", pedido=nuevo.id)
     return bool(nuevos) or hubo_aumento
 
@@ -1024,11 +1028,13 @@ def estado(db: Session, c: Corrida, desde_evento: int = 0, seleccionado: int | N
 
 def _detalle_pausa(db: Session, c: Corrida, pedido_id: int, evaluaciones) -> dict:
     pedido = db.get(Pedido, pedido_id)
-    linea, m = pedidos.lineas_de(db, pedido)[0]
+    todas = pedidos.lineas_de(db, pedido)
+    linea, m = todas[0]
     e = evaluaciones.get(m.id)
     mensajes = list(db.scalars(select(Mensaje).where(Mensaje.pedido_id == pedido.id).order_by(Mensaje.id)))
     return {
         "pedido": pedido.id,
+        "mismo_envio": [f"{l.cantidad_pedida} {med.nombre}" for l, med in todas[1:]],
         "medicamento_id": m.id,
         "nombre": m.nombre_completo,
         "unidad": m.unidad,

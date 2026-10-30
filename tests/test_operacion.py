@@ -176,3 +176,19 @@ def test_sin_ventas_no_se_pide(db):
     m = medicamento(db, existencia=0, diarios=(0,) * 30)
     e, nuevo = pedidos.evaluar_reposicion(db, m, ahora())
     assert e.plan.D == 0 and nuevo is None
+
+
+def test_los_del_mismo_proveedor_en_pedir_pronto_van_en_el_mismo_envio(db):
+    prov = proveedor(db)
+    a = medicamento(db, "A", existencia=10, proveedor_id=prov.id)  # llegó a R
+    b = medicamento(db, "B", existencia=40, proveedor_id=prov.id)  # «pedir pronto»: le faltan unos días para R
+    medicamento(db, "C", existencia=500, proveedor_id=prov.id)  # abastecido: no va
+    otro = proveedor(db, "Proveedor B")
+    medicamento(db, "D", existencia=40, proveedor_id=otro.id)  # pedir pronto, pero de otro proveedor: no va
+    evaluaciones, nuevos = pedidos.evaluar_grupo(db, [a], ahora())
+    assert len(nuevos) == 1
+    lineas = pedidos.lineas_de(db, nuevos[0])
+    assert [m.nombre for _, m in lineas] == ["A", "B"]
+    assert evaluaciones[b.id].estado.clave == "pronto"
+    aviso = db.scalar(select(Mensaje).where(Mensaje.pedido_id == nuevos[0].id))
+    assert "mismo envío" in aviso.texto

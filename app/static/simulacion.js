@@ -591,6 +591,9 @@
       ["EOQ = √(2DS / H)", num(p.Q, 2) + " → hacia arriba: pedir " + p.sugerida + (p.paquete > 1 ? " (paquetes de " + p.paquete + ")" : "")],
       ["Llegará en L", num(p.L, 0) + " días de operación"],
     ];
+    if (p.mismo_envio && p.mismo_envio.length) {
+      lineas.push(["En el mismo envío", p.mismo_envio.join(", ") + " (ya en «pedir pronto»: el envío se paga una vez)"]);
+    }
     var calculo = $("calculo");
     calculo.innerHTML = "<h3>El cálculo</h3>";
     var tabla = el("table", "datos");
