@@ -12,14 +12,21 @@ def _x(t: datetime, desde: datetime, hasta: datetime, ancho: float) -> float:
 
 def existencias(
     serie: list[tuple[datetime, int]],
-    planes: list[tuple[date, float | None, float | None]],
-    marcas: list[tuple[datetime, str, str]],
+    pedidos: list[dict],
     desde: datetime,
     hasta: datetime,
+    R: int | None = None,
+    Q: int | None = None,
     ancho: int = 720,
-    alto: int = 220,
+    alto: int = 330,
 ) -> dict:
-    """Existencia en escalones, R e IS vigentes cada día y marcas de pedidos y recepciones."""
+    """Gráfica del modelo clásico de inventario: nivel en escalones, línea del tamaño de pedido (Q),
+    línea del nivel de reorden (R), marcas de hacer/recibir pedido y la llave del tiempo de entrega.
+
+    `pedidos`: {"hecho": datetime, "llegada": datetime | None, "recibido": bool, "texto": str}.
+    """
+    izq, der, arriba, abajo = 64, 24, 30, 70
+    w, h = ancho - izq - der, alto - arriba - abajo
     previo = 0
     puntos = []
     for fecha, existencia in serie:
@@ -27,45 +34,60 @@ def existencias(
             previo = existencia
         elif fecha <= hasta:
             puntos.append((fecha, existencia))
-    valores = [previo] + [e for _, e in puntos]
-    valores += [v for _, r, i in planes for v in (r, i) if v is not None]
-    tope = max(max(valores or [1]) * 1.12, 1)
+    valores = [previo] + [e for _, e in puntos] + [v for v in (R, Q) if v]
+    tope = max(max(valores or [1]) * 1.15, 1)
+
+    def x(t: datetime) -> float:
+        return round(izq + _x(t, desde, hasta, w), 2)
 
     def y(valor: float) -> float:
-        return round(alto - valor / tope * alto, 2)
+        return round(arriba + h - valor / tope * h, 2)
 
-    ruta = [f"M0 {y(previo)}"]
+    ruta = [f"M{izq} {y(previo)}"]
     for fecha, existencia in puntos:
-        ruta.append(f"H{_x(fecha, desde, hasta, ancho)} V{y(existencia)}")
-    ruta.append(f"H{ancho}")
+        ruta.append(f"H{x(fecha)} V{y(existencia)}")
+    ruta.append(f"H{izq + w}")
 
-    def escalones(indice: int) -> str:
-        partes = []
-        for dia, *valores_dia in planes:
-            valor = valores_dia[indice]
-            if valor is None:
-                continue
-            inicio = datetime.combine(dia, time(), GUATEMALA)
-            fin = inicio + timedelta(days=1)
-            if fin < desde or inicio > hasta:
-                continue
-            x0, x1 = _x(max(inicio, desde), desde, hasta, ancho), _x(min(fin, hasta), desde, hasta, ancho)
-            partes.append(f"M{x0} {y(valor)} H{x1}")
-        return " ".join(partes)
+    marcas = []
+    llaves = []
+    for p in pedidos:
+        hecho, llegada = p["hecho"], p.get("llegada")
+        if desde <= hecho <= hasta:
+            marcas.append({"x": x(hecho), "tipo": "pedido", "texto": p["texto"]})
+        if llegada is not None and p.get("recibido") and desde <= llegada <= hasta:
+            marcas.append({"x": x(llegada), "tipo": "recepcion", "texto": p["texto"]})
+        if llegada is not None and hecho < hasta and llegada > desde:
+            llaves.append({
+                "x0": x(max(hecho, desde)), "x1": x(min(llegada, hasta)),
+                "estimada": not p.get("recibido"), "texto": p["texto"],
+            })
+    if llaves:
+        llaves[-1]["etiqueta"] = True
+
+    # Las etiquetas de R y Q van del lado donde el nivel les deja más espacio.
+    inicio_nivel = previo
+    fin_nivel = puntos[-1][1] if puntos else previo
+
+    def lado(valor):
+        return "izq" if abs(inicio_nivel - valor) >= abs(fin_nivel - valor) else "der"
 
     return {
         "ancho": ancho,
         "alto": alto,
+        "lado_r": lado(R) if R else "der",
+        "lado_q": lado(Q) if Q else "izq",
+        "izq": izq,
+        "der": izq + w,
+        "arriba": arriba,
+        "base": arriba + h,
         "tope": tope,
         "ruta": " ".join(ruta),
-        "ruta_r": escalones(0),
-        "ruta_is": escalones(1),
-        "marcas": [
-            {"x": _x(fecha, desde, hasta, ancho), "tipo": tipo, "texto": texto}
-            for fecha, tipo, texto in marcas
-            if desde <= fecha <= hasta
-        ],
-        "y_medio": y(tope / 2),
+        "y_r": y(R) if R else None,
+        "y_q": y(Q) if Q else None,
+        "r": R,
+        "q": Q,
+        "marcas": marcas,
+        "llaves": llaves,
         "desde": desde,
         "hasta": hasta,
     }

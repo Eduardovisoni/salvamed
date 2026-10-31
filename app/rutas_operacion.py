@@ -12,6 +12,7 @@ from app import graficas, inventario, pedidos, tareas
 from app.consumo import GUATEMALA, dia_local
 from app.db import (
     PENDIENTE,
+    REALIZADO,
     Medicamento,
     Mensaje,
     Movimiento,
@@ -278,23 +279,29 @@ async def crear(request: Request, db: Session = Depends(sesion)):
     return RedirectResponse(f"/medicamentos/{m.id}?guardado=1", status_code=303)
 
 
-def _grafica_existencias(db: Session, m: Medicamento, momento: datetime, dias: int = 30):
+def _grafica_existencias(db: Session, m: Medicamento, momento: datetime, plan=None, dias: int = 30):
     desde = datetime.combine(dia_local(momento) - timedelta(days=dias - 1), time(), GUATEMALA)
     serie = [(f, e) for f, e, _, _ in inventario.serie_de_existencias(db, m)]
-    planes = [
-        (p.dia, p.punto_reorden, p.inventario_seguridad)
-        for p in db.scalars(select(PlanDiario).where(PlanDiario.medicamento_id == m.id).order_by(PlanDiario.dia))
-    ]
-    marcas = []
+    pedidos_med = []
     for pedido in db.scalars(
-        select(Pedido).join(PedidoLinea, PedidoLinea.pedido_id == Pedido.id).where(PedidoLinea.medicamento_id == m.id)
+        select(Pedido).join(PedidoLinea, PedidoLinea.pedido_id == Pedido.id)
+        .where(PedidoLinea.medicamento_id == m.id).order_by(Pedido.realizado_en)
     ):
-        if pedido.realizado_en:
-            linea = db.scalar(select(PedidoLinea).where(PedidoLinea.pedido_id == pedido.id, PedidoLinea.medicamento_id == m.id))
-            marcas.append((pedido.realizado_en, "pedido", f"Pedido #{pedido.id}: {linea.cantidad_pedida}"))
-    for mv in db.scalars(select(Movimiento).where(Movimiento.medicamento_id == m.id, Movimiento.tipo == "recepcion")):
-        marcas.append((mv.fecha, "recepcion", f"Recepción +{mv.cantidad}"))
-    return graficas.existencias(serie, planes, marcas, desde, momento)
+        if not pedido.realizado_en:
+            continue
+        linea = db.scalar(select(PedidoLinea).where(PedidoLinea.pedido_id == pedido.id, PedidoLinea.medicamento_id == m.id))
+        recepcion = db.scalar(
+            select(Movimiento.fecha).where(Movimiento.medicamento_id == m.id, Movimiento.pedido_id == pedido.id, Movimiento.tipo == "recepcion")
+            .order_by(Movimiento.fecha.desc())
+        )
+        llegada = recepcion or (pedido.fecha_estimada if pedido.estado == REALIZADO else None)
+        pedidos_med.append({
+            "hecho": pedido.realizado_en, "llegada": llegada, "recibido": recepcion is not None,
+            "texto": f"Pedido #{pedido.id}: {linea.cantidad_pedida}",
+        })
+    R = plan.R_pedido if plan and plan.D > 0 else None
+    Q = round(plan.Q) if plan and plan.D > 0 and plan.Q else None
+    return graficas.existencias(serie, pedidos_med, desde, momento, R=R, Q=Q)
 
 
 @rutas.get("/medicamentos/{medicamento_id}")
@@ -319,7 +326,7 @@ def detalle(request: Request, medicamento_id: int, guardado: int = 0, db: Sessio
             "e": e,
             "m": m,
             "proveedor": db.get(Proveedor, m.proveedor_id) if m.proveedor_id else None,
-            "grafica": _grafica_existencias(db, m, momento),
+            "grafica": _grafica_existencias(db, m, momento, e.plan),
             "historial": inventario.historial(db, m),
             "pedidos_med": lineas,
             "guardado": guardado == 1,

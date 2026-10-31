@@ -1193,3 +1193,27 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: 0.85em; backgr
 .peligro .boton--peligro:hover { background: var(--pedir); color: #fff; border-color: var(--pedir); }
 .peligro .boton--peligro-lleno { background: var(--pedir); color: #fff; border-color: var(--pedir); }
 .peligro .boton--peligro-lleno:hover { background: #a52d23; border-color: #a52d23; }
+
+/* Gráfica del modelo clásico de inventario (detalle del medicamento) */
+.grafica--modelo svg { height: auto; border-bottom: 0; overflow: visible; }
+.modelo__eje { stroke: var(--texto); stroke-width: 1.5; }
+.modelo__texto { font-size: 13px; fill: var(--sutil); font-family: inherit; }
+.modelo__texto--eje { fill: var(--texto); font-weight: 500; }
+.modelo__texto--q { fill: var(--azul); font-weight: 600; }
+.modelo__texto--r { fill: #15803d; font-weight: 600; }
+.modelo__texto--entrega { fill: #d97706; font-weight: 600; }
+.modelo__q { stroke: var(--azul); stroke-width: 2; }
+.modelo__r { stroke: #16a34a; stroke-width: 2; }
+.modelo__existencia { fill: none; stroke: #4b5e3c; stroke-width: 2; stroke-linejoin: round; }
+.modelo__marca { stroke-width: 1.5; }
+.modelo__marca--pedido { stroke: #8b5a2b; stroke-dasharray: 5 4; }
+.modelo__marca--recepcion { stroke: #7c3aed; stroke-width: 2; }
+.modelo__llave line { stroke: #f59e0b; stroke-width: 2; }
+.modelo__llave--estimada line { stroke-dasharray: 4 3; }
+.grafica__muestra--q { height: 0; border-top: 2px solid var(--azul); border-radius: 0; }
+.grafica__muestra--reorden { height: 0; border-top: 2px solid #16a34a; border-radius: 0; }
+.grafica__muestra--hacer { width: 0; height: 12px; border-left: 2px dashed #8b5a2b; border-radius: 0; }
+.grafica__muestra--recibir { width: 2px; height: 12px; background: #7c3aed; }
+.grafica__muestra--entrega { height: 0; border-top: 2px solid #f59e0b; border-radius: 0; }
+@media (max-width: 600px) { .modelo__texto { font-size: 17px; } }
+.grafica__muestra--nivel { height: 0; border-top: 2px solid #4b5e3c; border-radius: 0; }

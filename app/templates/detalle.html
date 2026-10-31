@@ -87,20 +87,49 @@
 <section class="panel">
   <h2>Existencias en los últimos 30 días</h2>
   {% set g = grafica %}
-  <figure class="grafica grafica--alta">
-    <svg viewBox="0 0 {{ g.ancho }} {{ g.alto }}" preserveAspectRatio="none" role="img" aria-label="Existencia y punto de pedido en el tiempo">
-      <line class="grafica__guia" x1="0" x2="{{ g.ancho }}" y1="{{ g.y_medio }}" y2="{{ g.y_medio }}"></line>
-      <path class="grafica__r" d="{{ g.ruta_r }}"></path>
-      <path class="grafica__existencia" d="{{ g.ruta }}"></path>
+  <figure class="grafica grafica--modelo">
+    <svg viewBox="0 0 {{ g.ancho }} {{ g.alto }}" role="img" aria-label="Nivel de inventario en el tiempo, con nivel de reorden, tamaño de pedido y tiempo de entrega">
+      <!-- Ejes -->
+      <line class="modelo__eje" x1="{{ g.izq }}" x2="{{ g.izq }}" y1="{{ g.arriba - 8 }}" y2="{{ g.base }}"></line>
+      <line class="modelo__eje" x1="{{ g.izq }}" x2="{{ g.der }}" y1="{{ g.base }}" y2="{{ g.base }}"></line>
+      <text class="modelo__texto" x="{{ g.izq - 10 }}" y="{{ g.base + 18 }}" text-anchor="end">0</text>
+      <text class="modelo__texto" x="{{ g.der }}" y="{{ g.base + 18 }}" text-anchor="end">Tiempo</text>
+      <text class="modelo__texto modelo__texto--eje" transform="translate({{ g.izq - 40 }} {{ (g.arriba + g.base) / 2 }}) rotate(-90)" text-anchor="middle">Nivel de inventario</text>
+
+      {% if g.y_q %}
+      <line class="modelo__q" x1="{{ g.izq }}" x2="{{ g.der }}" y1="{{ g.y_q }}" y2="{{ g.y_q }}"><title>Tamaño de pedido (Q) = {{ g.q }}</title></line>
+      <text class="modelo__texto modelo__texto--q" x="{{ g.izq + 6 if g.lado_q == 'izq' else g.der - 6 }}" y="{{ g.y_q - 6 }}" text-anchor="{{ 'start' if g.lado_q == 'izq' else 'end' }}">Tamaño de pedido · {{ g.q }}</text>
+      {% endif %}
+      {% if g.y_r %}
+      <line class="modelo__r" x1="{{ g.izq }}" x2="{{ g.der }}" y1="{{ g.y_r }}" y2="{{ g.y_r }}"><title>Nivel de reorden (R) = {{ g.r }}</title></line>
+      <text class="modelo__texto modelo__texto--r" x="{{ g.izq + 6 if g.lado_r == 'izq' else g.der - 6 }}" y="{{ g.y_r - 6 }}" text-anchor="{{ 'start' if g.lado_r == 'izq' else 'end' }}">Nivel de reorden · {{ g.r }}</text>
+      {% endif %}
+
       {% for marca in g.marcas %}
-      <line class="grafica__marca grafica__marca--{{ marca.tipo }}" x1="{{ marca.x }}" x2="{{ marca.x }}" y1="0" y2="{{ g.alto }}"><title>{{ marca.texto }}</title></line>
+      <line class="modelo__marca modelo__marca--{{ marca.tipo }}" x1="{{ marca.x }}" x2="{{ marca.x }}" y1="{{ g.arriba }}" y2="{{ g.base }}"><title>{{ marca.texto }}</title></line>
+      {% endfor %}
+
+      <path class="modelo__existencia" d="{{ g.ruta }}"></path>
+
+      {% for llave in g.llaves %}
+      <g class="modelo__llave{% if llave.estimada %} modelo__llave--estimada{% endif %}">
+        <line x1="{{ llave.x0 }}" x2="{{ llave.x1 }}" y1="{{ g.base + 30 }}" y2="{{ g.base + 30 }}"></line>
+        <line x1="{{ llave.x0 }}" x2="{{ llave.x0 }}" y1="{{ g.base + 24 }}" y2="{{ g.base + 36 }}"></line>
+        <line x1="{{ llave.x1 }}" x2="{{ llave.x1 }}" y1="{{ g.base + 24 }}" y2="{{ g.base + 36 }}"></line>
+        {% if llave.etiqueta %}
+        <text class="modelo__texto modelo__texto--entrega" x="{{ (llave.x0 + llave.x1) / 2 }}" y="{{ g.base + 56 }}" text-anchor="middle">Tiempo de entrega{% if llave.estimada %} (estimado){% endif %}</text>
+        {% endif %}
+        <title>{{ llave.texto }}</title>
+      </g>
       {% endfor %}
     </svg>
     <figcaption class="grafica__leyenda">
-      <span><i class="grafica__muestra grafica__muestra--existencia"></i>Existencia</span>
-      <span><i class="grafica__muestra grafica__muestra--r"></i>Punto de pedido</span>
-      <span><i class="grafica__muestra grafica__muestra--pedido"></i>Pedido</span>
-      <span><i class="grafica__muestra grafica__muestra--recepcion"></i>Recepción</span>
+      <span><i class="grafica__muestra grafica__muestra--nivel"></i>Nivel de inventario</span>
+      <span><i class="grafica__muestra grafica__muestra--q"></i>Tamaño de pedido</span>
+      <span><i class="grafica__muestra grafica__muestra--reorden"></i>Nivel de reorden</span>
+      <span><i class="grafica__muestra grafica__muestra--hacer"></i>Hacer pedido</span>
+      <span><i class="grafica__muestra grafica__muestra--recibir"></i>Recibir pedido</span>
+      <span><i class="grafica__muestra grafica__muestra--entrega"></i>Tiempo de entrega</span>
       <span class="grafica__fechas">{{ g.desde | dia }} → hoy</span>
     </figcaption>
   </figure>
