@@ -7,25 +7,6 @@
   </div>
 </div>
 
-<section class="resumen resumen--compacto" aria-label="Resumen">
-  <a class="tarjeta tarjeta--pedir" href="/medicamentos?estado=pedir">
-    <span class="tarjeta__numero">{{ conteo.pedir }}</span>
-    <span class="tarjeta__texto">Pedir ya</span>
-  </a>
-  <a class="tarjeta tarjeta--pronto" href="/pedidos">
-    <span class="tarjeta__numero">{{ por_gestionar }}</span>
-    <span class="tarjeta__texto">Pedidos por gestionar</span>
-  </a>
-  <a class="tarjeta tarjeta--costo" href="/despachos">
-    <span class="tarjeta__numero">{{ hoy.numero_despachos }}</span>
-    <span class="tarjeta__texto">Despachos hoy</span>
-  </a>
-  <a class="tarjeta tarjeta--bien" href="/despachos">
-    <span class="tarjeta__numero">{{ hoy.unidades }}</span>
-    <span class="tarjeta__texto">Unidades entregadas hoy</span>
-  </a>
-</section>
-
 {% if hecho %}
 <div class="flotante" role="status" aria-live="polite">
   <span class="flotante__icono" aria-hidden="true">✓</span>
@@ -336,10 +317,8 @@
         .then(function (html) {
           var doc = new DOMParser().parseFromString(html, "text/html");
           var lista = doc.getElementById("ultimos-despachos");
-          var resumen = doc.querySelector(".resumen");
-          if (!lista || !resumen) { location.reload(); return; }
+          if (!lista) { location.reload(); return; }
           document.getElementById("ultimos-despachos").innerHTML = lista.innerHTML;
-          document.querySelector(".resumen").innerHTML = resumen.innerHTML;
           document.querySelectorAll("#ultimos-despachos tr[data-id]").forEach(function (tr) {
             if (antes.indexOf(tr.dataset.id) === -1) tr.classList.add("fila--nueva");
           });

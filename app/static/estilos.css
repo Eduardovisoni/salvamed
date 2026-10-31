@@ -651,11 +651,9 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: 0.85em; backgr
 .despacho .despacho__pie .carrito__total { border: 0; padding: 0; margin: 0; gap: 12px; }
 
 .titulo-pagina--compacto { margin-bottom: 16px; }
-.resumen--compacto { gap: 10px; margin-bottom: 14px; }
-.resumen--compacto .tarjeta { padding: 11px 16px; gap: 2px; }
-.resumen--compacto .tarjeta__numero { font-size: 1.35rem; }
 .despacho { padding: 16px 20px; margin-bottom: 12px; }
-.despacho h2 { margin-bottom: 10px; }
+.despacho h2 { font-size: 1.3rem; margin-bottom: 14px; }
+.despacho__fila .campo label { font-size: 1.05rem; }
 .despacho .campo { gap: 4px; }
 .despacho__fila { gap: 12px; margin-bottom: 12px; }
 .despacho .campo__entrada { min-height: 36px; padding-top: 6px; padding-bottom: 6px; }

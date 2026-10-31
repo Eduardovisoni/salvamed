@@ -8,7 +8,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app import dinero, graficas, inventario, pedidos, tareas
+from app import graficas, inventario, pedidos, tareas
 from app.consumo import GUATEMALA, dia_local
 from app.db import (
     PENDIENTE,
@@ -89,10 +89,6 @@ def _catalogo_para_despacho(evaluaciones) -> list[dict]:
 def _pagina_despacho(request, db: Session, lista=None, servicio="", error="", hecho=None, estado=200, agregar=None):
     momento = ahora()
     evaluaciones = _evaluaciones(db, momento=momento)
-    conteo = {clave: 0 for clave in ORDEN}
-    for e in evaluaciones:
-        conteo[e.estado.clave] = conteo.get(e.estado.clave, 0) + 1
-    inicio_hoy = datetime.combine(dia_local(momento), time(), GUATEMALA)
     recientes = list(
         db.scalars(select(Despacho).where(Despacho.corrida_id.is_(None)).order_by(Despacho.id.desc()).limit(8))
     )
@@ -119,9 +115,6 @@ def _pagina_despacho(request, db: Session, lista=None, servicio="", error="", he
             "hecho": hecho,
             "lineas_hecho": inventario.lineas_de(db, hecho) if hecho else [],
             "nuevos_pedidos": nuevos,
-            "conteo": conteo,
-            "por_gestionar": len(pedidos.pedidos(db, None, (PENDIENTE,))),
-            "hoy": dinero.resumen(db, None, inicio_hoy),
             "recientes": recientes,
         },
         estado,
