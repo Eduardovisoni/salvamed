@@ -154,6 +154,18 @@
     </div>
     <div class="acciones"><button class="boton" type="button" id="copiar-resumen">Copiar tabla para el informe</button></div>
   </dialog>
+
+  <div class="carta-capa" id="carta-capa" hidden>
+    <div class="carta-mesa" id="carta-mesa">
+      <div class="carta-flota" id="carta-flota">
+        <div class="carta" id="carta" role="dialog" aria-modal="true" aria-labelledby="carta-nombre">
+          <span class="carta__brillo" aria-hidden="true"></span>
+          <button class="carta__cerrar" type="button" id="carta-cerrar" aria-label="Cerrar">×</button>
+          <div class="carta__contenido" id="carta-contenido"></div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 {% endif %}
 
@@ -176,5 +188,5 @@
 {% endblock %}
 
 {% block scripts %}
-{% if corrida %}<script src="/static/simulacion.js?v=7"></script>{% endif %}
+{% if corrida %}<script src="/static/simulacion.js?v=9"></script>{% endif %}
 {% endblock %}

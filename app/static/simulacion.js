@@ -95,6 +95,7 @@
     pintarPausa();
     pintarGrafica();
     pintarReloj();
+    pintarCarta();
     if ($("resumen").open) pintarResumen();
   }
 
@@ -147,7 +148,7 @@
       '<span class="estante__pie"></span><span class="estante__llega"></span>';
     tarjeta.querySelector(".estante__nombre").textContent = t.nombre;
     tarjeta.querySelector(".estante__presentacion").textContent = t.presentacion;
-    if (lado === "salvamed") tarjeta.addEventListener("click", function () { seleccionado = t.id; pintarGrafica(); marcarSeleccion(); consultar(); });
+    if (lado === "salvamed") tarjeta.addEventListener("click", function () { seleccionado = t.id; pintarGrafica(); marcarSeleccion(); abrirCarta(t.id, tarjeta); consultar(); });
     else tarjeta.disabled = true;
     cont.appendChild(tarjeta);
     return tarjeta;
@@ -569,6 +570,140 @@
     });
   }
 
+  // ------------------------------------------------------------ carta grande de un medicamento
+
+  // Sale del estante, flota, se inclina hacia el mouse y se puede arrastrar; al soltarla vuelve al centro.
+  var carta = { id: null, origen: null, clave: "" };
+  var arrastre = null;
+  var quieto = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function fila(lista, etiqueta, simbolo, valor, clase) {
+    var dt = el("dt", "", etiqueta);
+    if (simbolo) dt.appendChild(el("small", "carta__simbolo", " " + simbolo));
+    lista.appendChild(dt);
+    lista.appendChild(el("dd", clase || "", valor));
+  }
+
+  function pintarCarta() {
+    if (carta.id === null) return;
+    var t = porId(carta.id);
+    if (!t) { cerrarCarta(); return; }
+    var clave = JSON.stringify(t);
+    if (clave === carta.clave) return;
+    carta.clave = clave;
+    var u = t.unidad;
+    var c = $("carta-contenido");
+    c.textContent = "";
+
+    var cabeza = el("div", "carta__cabeza");
+    var vacio = t.existencia <= 0;
+    cabeza.appendChild(el("span", "carta__estado carta__estado--" + (vacio ? "vacio" : t.estado), vacio ? "Sin existencia" : t.etiqueta));
+    var nombre = el("h2", "carta__nombre", t.nombre);
+    nombre.id = "carta-nombre";
+    cabeza.appendChild(nombre);
+    cabeza.appendChild(el("span", "carta__presentacion", t.presentacion));
+    c.appendChild(cabeza);
+
+    var hay = el("div", "carta__hay");
+    hay.appendChild(el("span", "carta__numero", String(t.existencia)));
+    hay.appendChild(el("span", "carta__unidad", u));
+    if (t.camino) hay.appendChild(el("span", "carta__camino", "🚚 +" + t.camino.cantidad + " llega " + t.camino.llega));
+    c.appendChild(hay);
+
+    c.appendChild(el("h3", "carta__titulo", "Datos"));
+    var datos = el("dl", "carta__lista");
+    fila(datos, "Precio", "", t.precio ? "Q" + num(t.precio, 2) + " por " + u : "—");
+    fila(datos, "Caja de", "", t.paquete + " " + u);
+    if (t.proveedor) fila(datos, "Proveedor", "", t.proveedor);
+    fila(datos, "Envío", "S", t.envio && t.por_envio > 1 ? "Q" + num(t.envio, 2) + " ÷ " + t.por_envio + " = Q" + num(t.S, 2) : "Q" + num(t.S, 2));
+    fila(datos, "Tasa anual", "", t.tasa !== null ? num(t.tasa * 100, 0) + " %" : "—");
+    fila(datos, "Llega en", "L", num(t.L, 0) + " días");
+    fila(datos, "Probabilidad", "", num(t.p, 0) + " %" + (t.Z !== null ? " · Z " + num(t.Z, 3) : ""));
+    fila(datos, "Días con datos", "", String(t.dias));
+    fila(datos, "Consumo por día", "μD", num(t.mu, 2));
+    fila(datos, "Variación por día", "σD", num(t.sigma, 2));
+    c.appendChild(datos);
+
+    c.appendChild(el("h3", "carta__titulo", "Resultado"));
+    if (t.R === null) {
+      c.appendChild(el("p", "carta__sin-plan", t.dias < 2 ? "Sin plan: " + t.dias + " de 2 días completos" : (t.pendientes[0] || "Plan pendiente")));
+      return;
+    }
+    var res = el("dl", "carta__lista");
+    fila(res, "Consumo al año", "D", num(t.D, 2));
+    fila(res, "Guardar 1 al año", "H", "Q" + num(t.H, 2));
+    fila(res, "Variación en L días", "σL", num(t.sigma_L, 2));
+    fila(res, "Reserva", "IS", num(t.IS, 2), "carta__is");
+    fila(res, "Pedir al llegar a", "R", num(t.R, 2) + " → " + t.R_pedido, "carta__r");
+    fila(res, "Cuánto pedir", "Q", num(t.Q, 2) + " → " + t.sugerida + (t.paquete > 1 ? " (" + Math.round(t.sugerida / t.paquete) + " cajas)" : ""));
+    fila(res, "Faltan para pedir", "", t.dias_para_reorden === null ? "—" : t.dias_para_reorden <= 0 ? "Ya llegó" : num(t.dias_para_reorden, 1) + " días");
+    c.appendChild(res);
+  }
+
+  // Distancia del centro de la pantalla (donde queda la carta) al estante.
+  function haciaEstante(tile, giro) {
+    var r = tile.getBoundingClientRect();
+    var dx = r.left + r.width / 2 - window.innerWidth / 2, dy = r.top + r.height / 2 - window.innerHeight / 2;
+    var escala = Math.min(r.width / ($("carta").offsetWidth || r.width), 1);
+    return "translate(" + Math.round(dx) + "px," + Math.round(dy) + "px) scale(" + escala.toFixed(3) + ") rotate(" + giro + "deg)";
+  }
+
+  function abrirCarta(id, tile) {
+    var capa = $("carta-capa"), mesa = $("carta-mesa");
+    carta.id = id;
+    carta.origen = tile;
+    carta.clave = "";
+    $("carta").style.setProperty("--color", tile.style.getPropertyValue("--color"));
+    capa.hidden = false;
+    pintarCarta();
+    if (!quieto) {
+      mesa.style.transition = "none";
+      mesa.style.transform = haciaEstante(tile, -10);
+      void mesa.offsetWidth;
+      mesa.style.transition = "";
+    }
+    mesa.style.transform = "";
+    capa.classList.add("carta-capa--visible");
+    $("carta-cerrar").focus({ preventScroll: true });
+  }
+
+  function cerrarCarta() {
+    if (carta.id === null) return;
+    var capa = $("carta-capa"), mesa = $("carta-mesa"), tile = carta.origen;
+    carta.id = null;
+    arrastre = null;
+    enderezar();
+    capa.classList.remove("carta-capa--visible");
+    if (tile && !quieto) mesa.style.transform = haciaEstante(tile, 8);
+    setTimeout(function () {
+      if (carta.id !== null) return;
+      capa.hidden = true;
+      mesa.style.transition = "none";
+      mesa.style.transform = "";
+      void mesa.offsetWidth;
+      mesa.style.transition = "";
+    }, quieto ? 0 : 300);
+    if (tile) tile.focus({ preventScroll: true });
+  }
+
+  function inclinar(evento) {
+    if (quieto || arrastre) return;
+    var r = $("carta-flota").getBoundingClientRect();
+    var x = Math.max(0, Math.min(1, (evento.clientX - r.left) / r.width));
+    var y = Math.max(0, Math.min(1, (evento.clientY - r.top) / r.height));
+    var hoja = $("carta");
+    hoja.style.transform = "rotateY(" + ((x - 0.5) * 22).toFixed(1) + "deg) rotateX(" + ((0.5 - y) * 22).toFixed(1) + "deg) scale(1.03)";
+    hoja.style.setProperty("--bx", (x * 100).toFixed(0) + "%");
+    hoja.style.setProperty("--by", (y * 100).toFixed(0) + "%");
+    hoja.classList.add("carta--brilla");
+  }
+
+  function enderezar() {
+    var hoja = $("carta");
+    hoja.style.transform = "";
+    hoja.classList.remove("carta--brilla");
+  }
+
   // ------------------------------------------------------------ pausa (Telegram)
 
   function pintarPausa() {
@@ -696,6 +831,33 @@
     if (confirm("¿Terminar la demostración y mostrar el resumen? El reloj se queda en pausa.")) controlar("terminar");
   });
   $("cerrar-resumen").addEventListener("click", function () { $("resumen").close(); });
+
+  $("carta-cerrar").addEventListener("click", cerrarCarta);
+  $("carta-capa").addEventListener("click", function (evento) { if (!evento.target.closest(".carta")) cerrarCarta(); });
+  document.addEventListener("keydown", function (evento) { if (evento.key === "Escape" && carta.id !== null) cerrarCarta(); });
+  $("carta").addEventListener("pointerdown", function (evento) {
+    if (quieto || evento.button !== 0 || evento.target.closest("button")) return;
+    arrastre = { x: evento.clientX, y: evento.clientY, ultimo: evento.clientX, giro: 0 };
+    $("carta").setPointerCapture(evento.pointerId);
+    $("carta-mesa").classList.add("carta-mesa--arrastrando");
+    enderezar();
+  });
+  $("carta").addEventListener("pointermove", function (evento) {
+    if (!arrastre) { inclinar(evento); return; }
+    // Al moverla se ladea hacia donde va, como una carta en la mano.
+    arrastre.giro = Math.max(-16, Math.min(16, arrastre.giro * 0.7 + (evento.clientX - arrastre.ultimo) * 0.9));
+    arrastre.ultimo = evento.clientX;
+    $("carta-mesa").style.transform = "translate(" + (evento.clientX - arrastre.x) + "px," + (evento.clientY - arrastre.y) + "px) rotate(" + arrastre.giro.toFixed(1) + "deg)";
+  });
+  function soltarCarta() {
+    if (!arrastre) return;
+    arrastre = null;
+    $("carta-mesa").classList.remove("carta-mesa--arrastrando");
+    $("carta-mesa").style.transform = "";
+  }
+  $("carta").addEventListener("pointerup", soltarCarta);
+  $("carta").addEventListener("pointercancel", soltarCarta);
+  $("carta").addEventListener("pointerleave", function () { if (!arrastre) enderezar(); });
   $("copiar-resumen").addEventListener("click", function () {
     var boton = this;
     var m = estado.marcador;

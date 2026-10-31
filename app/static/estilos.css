@@ -1106,3 +1106,61 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: 0.85em; backgr
 .evento--emergencia { background: var(--pedir-fondo); }
 .evento--anotado { background: var(--fondo); }
 .evento--roble .evento__icono { filter: grayscale(0.6); }
+
+/* Carta grande de un medicamento (simulación): sale del estante, flota, se inclina con el mouse y se arrastra */
+.carta-capa { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 16px; background: rgba(24, 24, 27, 0); transition: background 0.3s; }
+.carta-capa[hidden] { display: none; }
+.carta-capa--visible { background: rgba(24, 24, 27, 0.55); }
+.carta-mesa { perspective: 900px; transition: transform 0.45s cubic-bezier(0.2, 1.35, 0.4, 1); touch-action: none; }
+.carta-mesa--arrastrando { transition: transform 0.06s linear; }
+.carta-flota { animation: carta-flota 4s ease-in-out infinite; }
+.carta-mesa--arrastrando .carta-flota { animation-play-state: paused; }
+.carta {
+  --color: var(--primario);
+  position: relative; width: min(340px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: hidden;
+  background: var(--superficie); border: 3px solid var(--color); border-radius: 18px;
+  box-shadow: 0 2px 0 4px rgba(255, 255, 255, 0.9), 0 28px 60px rgba(0, 0, 0, 0.35);
+  transform-style: preserve-3d; transition: transform 0.15s ease-out; cursor: grab; user-select: none;
+}
+.carta-mesa--arrastrando .carta { cursor: grabbing; }
+.carta__brillo {
+  position: absolute; inset: 0; z-index: 2; pointer-events: none; opacity: 0; transition: opacity 0.2s;
+  background: radial-gradient(circle at var(--bx, 50%) var(--by, 0%), rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 45%);
+}
+.carta--brilla .carta__brillo { opacity: 1; }
+.carta__cerrar {
+  position: absolute; top: 10px; right: 10px; z-index: 3; width: 30px; height: 30px; border: 0; border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22); color: #fff; font-size: 1.2rem; line-height: 1; cursor: pointer;
+}
+.carta__cerrar:hover { background: rgba(255, 255, 255, 0.38); }
+.carta__cerrar:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.carta__contenido { max-height: calc(100vh - 38px); overflow-y: auto; }
+.carta__cabeza { display: grid; gap: 2px; padding: 12px 48px 12px 16px; background: var(--color); color: #fff; }
+.carta__estado { justify-self: start; margin-bottom: 4px; padding: 2px 8px; border-radius: 999px; font-size: 0.68rem; font-weight: 600; background: rgba(255, 255, 255, 0.92); color: var(--texto); }
+.carta__estado--pedir { color: var(--pedir); }
+.carta__estado--pronto { color: var(--pronto); }
+.carta__estado--bien { color: var(--bien); }
+.carta__estado--vacio { color: #dc2626; }
+.carta__nombre { margin: 0; font-size: 1.25rem; line-height: 1.15; color: #fff; }
+.carta__presentacion { font-size: 0.8rem; opacity: 0.85; }
+.carta__hay { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; padding: 10px 16px 4px; }
+.carta__numero { font-size: 2.2rem; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1; }
+.carta__unidad { font-size: 0.85rem; color: var(--sutil); }
+.carta__camino { flex-basis: 100%; font-size: 0.78rem; color: var(--azul); font-weight: 500; }
+.carta__titulo { margin: 10px 16px 2px; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--tenue); }
+.carta__lista { display: grid; grid-template-columns: auto 1fr; margin: 0 16px; font-size: 0.82rem; }
+.carta__lista dt, .carta__lista dd { padding: 3px 0; border-bottom: 1px solid var(--borde); }
+.carta__lista dt { color: var(--sutil); }
+.carta__lista dd { margin: 0; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.carta__lista dt:last-of-type, .carta__lista dd:last-of-type { border-bottom: 0; }
+.carta__lista + .carta__titulo { margin-top: 8px; }
+.carta__lista:last-child { margin-bottom: 14px; }
+.carta__simbolo { font-size: 0.7rem; color: var(--tenue); }
+.carta__lista .carta__r { color: var(--pedir); }
+.carta__lista .carta__is { color: var(--pronto); }
+.carta__sin-plan { margin: 4px 16px 16px; font-size: 0.82rem; color: var(--sutil); }
+@keyframes carta-flota { 0%, 100% { transform: translateY(0) rotate(-0.8deg); } 50% { transform: translateY(-6px) rotate(0.8deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .carta-flota { animation: none; }
+  .carta-mesa, .carta, .carta-capa { transition: none; }
+}
