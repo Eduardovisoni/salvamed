@@ -101,6 +101,16 @@
   </form>
 </section>
 
+<section class="panel panel--fila" id="historial">
+  <div>
+    <h2>Simular historial</h2>
+    <p class="sutil">Inventa los últimos 30 días de despachos y un pedido recibido para los medicamentos que todavía no tienen movimientos, así las gráficas y el consumo estimado se ven llenos desde hoy. La existencia actual no cambia. Los que ya tienen historial no se tocan.</p>
+  </div>
+  <form method="post" action="/configuracion/historial" data-confirmar="Se generarán 30 días de movimientos simulados para los medicamentos sin historial. ¿Continuar?" data-una-vez>
+    <button class="boton" type="submit" {% if catalogo_vacio %}disabled{% endif %}>Simular historial</button>
+  </form>
+</section>
+
 <section class="panel panel--fila" id="borrar">
   <div>
     <h2>Borrar todos los datos</h2>

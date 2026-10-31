@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app import importacion, telegram
 from app.ajustes import ajustes
-from app.db import Importacion, Medicamento, Proveedor, lista_de_servicios, motor, sesion
+from app.db import Importacion, Medicamento, Proveedor, ahora, lista_de_servicios, motor, sesion
 from app.formulario import CAMPOS_PROVEEDOR, GRUPOS_CONFIGURACION, campos, leer, valores_de
 from app.inventario import ErrorDeOperacion
 from app.planificacion import configuracion
@@ -113,6 +113,21 @@ def cargar_demo(tareas_fondo: BackgroundTasks, db: Session = Depends(sesion)):
     resumen = cargar(db)
     _reevaluar(tareas_fondo)
     texto = f"Demostración cargada: {resumen['creados']} medicamentos nuevos, {resumen['actualizados']} ya existían."
+    return RedirectResponse(f"/medicamentos?mensaje={texto}", status_code=303)
+
+
+@rutas.post("/configuracion/historial")
+def simular_historial(tareas_fondo: BackgroundTasks, db: Session = Depends(sesion)):
+    from app.demo import simular_historial as simular
+
+    resumen = simular(db, ahora())
+    _reevaluar(tareas_fondo)
+    if resumen["simulados"]:
+        texto = f"Historial simulado: {resumen['dias']} días de movimientos para {resumen['simulados']} medicamentos."
+        if resumen["omitidos"]:
+            texto += f" {resumen['omitidos']} ya tenían historial y no se tocaron."
+    else:
+        texto = "No se generó nada: todos los medicamentos ya tienen historial o no hay existencias."
     return RedirectResponse(f"/medicamentos?mensaje={texto}", status_code=303)
 
 
