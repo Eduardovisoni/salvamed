@@ -17,6 +17,8 @@
 
 <div class="herramientas">
   <input id="buscar" class="campo__entrada buscador" type="search" placeholder="Buscar medicamento…" aria-label="Buscar medicamento">
+  <div class="herramientas__derecha">
+  {% with que="el inventario" %}{% include "_actualizar.html" %}{% endwith %}
   <div class="selector">
     <button type="button" id="filtro-boton" class="boton selector__boton filtro__boton" aria-haspopup="listbox" aria-expanded="false" aria-controls="filtros">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M7 12h10M10 18h4"/></svg>
@@ -32,8 +34,10 @@
       {% endfor %}
     </ul>
   </div>
+  </div>
 </div>
 
+<div id="inventario-datos">
 {% if filas %}
 <div class="tabla-envoltura">
   <table class="tabla tabla--densa">
@@ -50,7 +54,7 @@
     </thead>
     <tbody>
       {% for e in filas %}
-      <tr data-estado="{{ e.estado.clave }}" data-nombre="{{ e.m.nombre_completo | lower }} {{ e.m.sku | lower }}">
+      <tr data-clave="{{ e.m.id }}" data-estado="{{ e.estado.clave }}" data-nombre="{{ e.m.nombre_completo | lower }} {{ e.m.sku | lower }}">
         <td>
           <a class="enlace-fila" href="/medicamentos/{{ e.m.id }}">{{ e.m.nombre }}</a>
           {% if e.m.presentacion %}<span class="sutil">{{ e.m.presentacion }}</span>{% endif %}
@@ -93,12 +97,14 @@
   <p class="sutil">{% for m in inactivos %}<a href="/medicamentos/{{ m.id }}">{{ m.nombre_completo }}</a>{% if not loop.last %} · {% endif %}{% endfor %}</p>
 </section>
 {% endif %}
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
   (function () {
-    var filas = Array.prototype.slice.call(document.querySelectorAll("tbody tr"));
+    var datos = document.getElementById("inventario-datos");
+    var filas = [];
     var buscar = document.getElementById("buscar");
     var sinResultados = document.getElementById("sin-resultados");
     var boton = document.getElementById("filtro-boton");
@@ -121,7 +127,7 @@
       if (sinResultados) sinResultados.hidden = visibles !== 0;
     }
 
-    var envoltura = document.querySelector(".tabla-envoltura");
+    var envoltura;
     var sinMovimiento = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     var listo = false;
 
@@ -141,10 +147,17 @@
       });
     }
 
-    lista.querySelectorAll("[data-cuenta]").forEach(function (cuenta) {
-      var clave = cuenta.dataset.cuenta;
-      cuenta.textContent = filas.filter(function (f) { return clave === "todos" || f.dataset.estado === clave; }).length;
-    });
+    function enlazar() {
+      filas = Array.prototype.slice.call(datos.querySelectorAll("tbody tr"));
+      sinResultados = document.getElementById("sin-resultados");
+      envoltura = datos.querySelector(".tabla-envoltura");
+      lista.querySelectorAll("[data-cuenta]").forEach(function (cuenta) {
+        var clave = cuenta.dataset.cuenta;
+        cuenta.textContent = filas.filter(function (f) { return clave === "todos" || f.dataset.estado === clave; }).length;
+      });
+    }
+    enlazar();
+    seccionViva(datos, { alReemplazar: function () { enlazar(); aplicar(); } });
     var control = desplegable(boton, lista, function (li) {
       filtro = li.dataset.valor;
       boton.classList.toggle("filtro__boton--activo", filtro !== "todos");

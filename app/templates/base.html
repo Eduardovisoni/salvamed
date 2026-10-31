@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
-  <link rel="stylesheet" href="/static/estilos.css?v=24">
+  <link rel="stylesheet" href="/static/estilos.css?v=25">
   {% block cabeza %}{% endblock %}
 </head>
 <body class="{% block clase_cuerpo %}{% endblock %}">
@@ -76,6 +76,81 @@
       if (boton) boton.addEventListener("click", cerrar);
       programar();
     });
+
+    // Recarga solo una sección de la página (sin recargar todo) y la vuelve a
+    // pedir sola al regresar a la pestaña, para que lo hecho desde otra pantalla
+    // o desde Telegram aparezca sin tocar nada.
+    function seccionViva(contenedor, opciones) {
+      opciones = opciones || {};
+      var boton = document.querySelector("[data-actualizar]");
+      var texto = boton && boton.querySelector(".actualizar__texto");
+      var sinMovimiento = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      var cargando = false;
+      var ultima = Date.now();
+      var temporizador;
+
+      function firmas(raiz) {
+        var mapa = {};
+        raiz.querySelectorAll("[data-clave]").forEach(function (el) { mapa[el.dataset.clave] = el.textContent.replace(/\s+/g, " ").trim(); });
+        return mapa;
+      }
+      function estado(clase, etiqueta) {
+        if (!boton) return;
+        boton.classList.remove("actualizar--cargando", "actualizar--listo", "actualizar--error");
+        if (clase) boton.classList.add(clase);
+        if (texto) texto.textContent = etiqueta || "Actualizar";
+        clearTimeout(temporizador);
+        if (clase === "actualizar--listo" || clase === "actualizar--error") temporizador = setTimeout(function () { estado(null); }, 2200);
+      }
+      function actualizar() {
+        if (cargando) return Promise.resolve();
+        cargando = true;
+        estado("actualizar--cargando", "Actualizando…");
+        return fetch(window.location.pathname + window.location.search, { cache: "no-store", headers: { "X-Requested-With": "fetch" } })
+          .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
+          .then(function (html) {
+            var doc = new DOMParser().parseFromString(html, "text/html");
+            var nuevo = doc.getElementById(contenedor.id);
+            if (!nuevo) throw new Error("sin sección");
+            var antes = firmas(contenedor);
+            var cambio = false;
+            var animar = !sinMovimiento && contenedor.animate;
+            function reemplazar() {
+              contenedor.innerHTML = nuevo.innerHTML;
+              contenedor.querySelectorAll("[data-clave]").forEach(function (el) {
+                var clave = el.dataset.clave;
+                var ahora = el.textContent.replace(/\s+/g, " ").trim();
+                if (antes[clave] !== ahora) { cambio = true; el.classList.add("cambiado"); }
+              });
+              if (opciones.alReemplazar) opciones.alReemplazar(contenedor);
+              ultima = Date.now();
+              estado("actualizar--listo", cambio ? "Al día" : "Sin cambios");
+            }
+            if (animar) {
+              var salida = contenedor.animate([{ opacity: 1 }, { opacity: 0.35 }], { duration: 140, easing: "ease-in", fill: "forwards" });
+              salida.onfinish = function () {
+                salida.cancel();
+                reemplazar();
+                contenedor.animate([{ opacity: 0.35 }, { opacity: 1 }], { duration: 220, easing: "ease-out" });
+              };
+            } else {
+              reemplazar();
+            }
+          })
+          .catch(function () { estado("actualizar--error", "Sin conexión"); })
+          .then(function () { cargando = false; });
+      }
+      if (boton) boton.addEventListener("click", actualizar);
+      function alVolver() {
+        if (document.visibilityState !== "visible") return;
+        if (Date.now() - ultima < 3000) return;
+        actualizar();
+      }
+      document.addEventListener("visibilitychange", alVolver);
+      window.addEventListener("focus", alVolver);
+      window.addEventListener("pageshow", function (e) { if (e.persisted) { ultima = 0; alVolver(); } });
+      return actualizar;
+    }
 
     function desplegable(boton, lista, alElegir) {
       var opciones = Array.prototype.slice.call(lista.querySelectorAll("[role=option]"));

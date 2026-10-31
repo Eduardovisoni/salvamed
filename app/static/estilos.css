@@ -1162,3 +1162,21 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: 0.85em; backgr
   .carta-flota { animation: none; }
   .carta-mesa, .carta, .carta-capa { transition: none; }
 }
+
+/* Botón de actualizar una sección sin recargar la página */
+.herramientas__derecha { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.actualizar { gap: 7px; color: var(--sutil); transition: background 0.15s, color 0.15s, border-color 0.15s; }
+.actualizar svg { transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.actualizar:hover svg { transform: rotate(60deg); }
+.actualizar__texto { font-size: 0.875rem; }
+.actualizar--cargando { color: var(--sutil); pointer-events: none; }
+.actualizar--cargando svg { animation: girar 0.8s linear infinite; }
+.actualizar--listo { color: var(--primario-oscuro); border-color: #a7d8d0; background: var(--primario-suave); }
+.actualizar--error { color: var(--pedir); }
+.cambiado, .cambiado td { animation: cambia 1.2s ease-out; }
+@keyframes cambia { from { background: #d6eee9; } }
+.pedido-tarjeta.cambiado { animation: tarjeta-cambia 1.2s ease-out; }
+@keyframes tarjeta-cambia { from { box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.35); background: #e7f5f2; } }
+@media (prefers-reduced-motion: reduce) {
+  .actualizar svg, .actualizar--cargando svg, .cambiado, .pedido-tarjeta.cambiado { animation: none; transition: none; transform: none; }
+}

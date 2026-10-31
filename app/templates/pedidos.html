@@ -5,16 +5,19 @@
   <div>
     <h1>Pedidos</h1>
   </div>
+  <div class="acciones">
+    {% with que="los pedidos" %}{% include "_actualizar.html" %}{% endwith %}
+  </div>
 </div>
 
 {% set grupos = [("pendiente", "Pendientes de gestionar"), ("realizado", "Realizados · en camino"), ("recibido", "Recibidos"), ("cancelado", "Cancelados")] %}
-<div class="tablero">
+<div id="pedidos-datos" class="tablero">
   {% for clave, titulo in grupos %}
   {% set lista = pedidos | selectattr("estado", "equalto", clave) | list %}
   <section class="tablero__columna" aria-label="{{ titulo }}">
     <h2 class="tablero__titulo"><i class="punto punto--{{ clave }}-pedido"></i>{{ titulo }}<span class="tablero__cuenta">{{ lista | length }}</span></h2>
     {% for p in lista %}
-    <a class="pedido-tarjeta" href="/pedidos/{{ p.id }}">
+    <a class="pedido-tarjeta" data-clave="{{ p.id }}" href="/pedidos/{{ p.id }}">
       <div class="pedido-tarjeta__cabeza">
         <strong>#{{ p.id }}</strong>
         <span class="sutil">{{ proveedores[p.proveedor_id].nombre if p.proveedor_id in proveedores else "Sin proveedor" }}</span>
@@ -40,4 +43,8 @@
   </section>
   {% endfor %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>seccionViva(document.getElementById("pedidos-datos"));</script>
 {% endblock %}
