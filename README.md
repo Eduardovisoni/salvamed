@@ -67,6 +67,7 @@ Ninguna es obligatoria para usarla en la computadora. Ningún secreto va en el c
 | `TELEGRAM_CHATS_SIMULACION` | Chats para los avisos de la simulación (si no, usa `TELEGRAM_CHATS`) |
 | `TELEGRAM_USUARIOS` | IDs de usuario que pueden pulsar los botones (vacío: cualquiera del chat autorizado) |
 | `TELEGRAM_SECRETO_WEBHOOK` | Texto secreto que Telegram envía en cada llamada al webhook |
+| `SALVAMED_SEGUNDOS_POR_DIA` | Solo para demostrar. Cuántos segundos reales dura un «día» del plazo de entrega (normal: `86400`). Con `10`, un plazo de 2 días se cumple en 20 s, el pedido se recibe solo y avisa «📦 recibido» |
 
 En PowerShell las variables se ponen así, solo para esa ventana:
 

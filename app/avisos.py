@@ -115,6 +115,21 @@ def texto_atraso(e, pedido: Pedido) -> str:
     )
 
 
+def texto_recibido(db: Session, pedido: Pedido) -> str:
+    lineas = list(
+        db.execute(
+            select(PedidoLinea, Medicamento)
+            .join(Medicamento, Medicamento.id == PedidoLinea.medicamento_id)
+            .where(PedidoLinea.pedido_id == pedido.id)
+            .order_by(PedidoLinea.id)
+        ).tuples()
+    )
+    partes = [_encabezado(pedido.corrida_id), f"📦 Pedido #{pedido.id} recibido · existencia actualizada"]
+    for linea, m in lineas:
+        partes.append(f"• {m.nombre_completo}: +{linea.cantidad_recibida} → existencia {m.existencia}")
+    return "\n".join(partes)
+
+
 def encolar(db: Session, tipo: str, texto: str, corrida_id=None, pedido_id=None, medicamento_id=None, con_botones=False) -> list[Mensaje]:
     a = ajustes()
     chats = a.chats_de(corrida_id)

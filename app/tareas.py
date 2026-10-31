@@ -34,6 +34,25 @@ def reevaluar_operacion() -> None:
         pedidos.evaluar_grupo(db, list(medicamentos), ahora())
 
 
+def recibir_vencidos() -> None:
+    """Solo en demo rápida (SALVAMED_SEGUNDOS_POR_DIA < 86400): los pedidos llegan solos al cumplirse el plazo."""
+    from app import pedidos
+
+    with Session(motor) as db:
+        if pedidos.recibir_vencidos(db, ahora()):
+            medicamentos = db.scalars(select(Medicamento).where(Medicamento.corrida_id.is_(None), Medicamento.activo)).all()
+            pedidos.evaluar_grupo(db, list(medicamentos), ahora())
+
+
+async def _bucle_recepcion() -> None:
+    while True:
+        try:
+            await asyncio.to_thread(recibir_vencidos)
+        except Exception:
+            registro.exception("Falló la recepción automática")
+        await asyncio.sleep(2)
+
+
 async def _bucle_envio() -> None:
     while True:
         try:
@@ -91,6 +110,9 @@ def arrancar() -> list[asyncio.Task]:
     if not a.tareas:
         return []
     tareas = [asyncio.create_task(_bucle_envio()), asyncio.create_task(_bucle_reevaluacion())]
+    if a.demo_rapida:
+        registro.warning("Demo rápida: un día de plazo dura %.0f s y los pedidos se reciben solos.", a.segundos_por_dia)
+        tareas.append(asyncio.create_task(_bucle_recepcion()))
     if a.telegram_modo == "polling":
         tareas.append(asyncio.create_task(_bucle_polling()))
     elif a.telegram_modo == "webhook":

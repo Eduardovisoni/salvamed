@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import avisos
+from app.ajustes import ajustes
 from app.db import (
     ABIERTOS,
     CANCELADO,
@@ -115,7 +116,7 @@ def marcar_realizado(
     pedido.estado = REALIZADO
     pedido.realizado_en = momento
     pedido.confirmado_por = usuario[:120]
-    pedido.fecha_estimada = fecha_estimada or momento + timedelta(days=plazo_de(db, pedido))
+    pedido.fecha_estimada = fecha_estimada or momento + timedelta(seconds=plazo_de(db, pedido) * ajustes().segundos_por_dia)
     db.commit()
     return True, f"Pedido #{pedido.id} registrado como realizado por {usuario}."
 
@@ -242,6 +243,26 @@ def _del_mismo_envio(db: Session, lista: list[Evaluacion], evaluaciones: dict[in
         for m in otros
         if (e := evaluaciones[m.id]).plan and e.plan.D > 0 and e.estado.clave == "pronto" and e.pedido_abierto is None and e.sugerida > 0
     ]
+
+
+def recibir_vencidos(db: Session, momento: datetime) -> list[Pedido]:
+    """Demo rápida: los pedidos en camino cuyo plazo ya se cumplió llegan solos y se avisa."""
+    from app import inventario
+
+    vencidos = db.scalars(
+        select(Pedido).where(
+            Pedido.corrida_id.is_(None), Pedido.estado == REALIZADO, Pedido.fecha_estimada.is_not(None),
+            Pedido.fecha_estimada <= momento,
+        )
+    ).all()
+    recibidos = []
+    for pedido in vencidos:
+        cantidades = {l.id: l.por_recibir for l, _ in lineas_de(db, pedido) if l.por_recibir > 0}
+        inventario.recibir(db, pedido, cantidades, momento, "Recepción automática (demo)", cerrar=True)
+        avisos.encolar(db, "recibido", avisos.texto_recibido(db, pedido), None, pedido.id)
+        recibidos.append(pedido)
+    db.commit()
+    return recibidos
 
 
 def pedidos(db: Session, corrida_id=None, estados=None, limite=100) -> list[Pedido]:

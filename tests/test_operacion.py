@@ -219,3 +219,23 @@ def test_el_aviso_de_un_controlado_lo_dice(db):
     _, pedido = pedidos.evaluar_reposicion(db, fentanilo, ahora())
     aviso = db.scalar(select(Mensaje).where(Mensaje.pedido_id == pedido.id))
     assert "F-SI-f-13" in aviso.texto
+
+
+def test_demo_rapida_el_plazo_dura_segundos_y_el_pedido_llega_solo(db, monkeypatch):
+    from datetime import timedelta
+
+    monkeypatch.setenv("SALVAMED_SEGUNDOS_POR_DIA", "10")
+    m = medicamento(db, existencia=15)
+    _, pedido = pedidos.evaluar_reposicion(db, m, ahora())
+    momento = ahora()
+    pedidos.marcar_realizado(db, pedido, "Encargado", momento)
+    plazo = pedidos.plazo_de(db, pedido)
+    assert pedido.fecha_estimada - momento == timedelta(seconds=plazo * 10)
+    assert pedidos.recibir_vencidos(db, momento + timedelta(seconds=1)) == []  # todavía en camino
+    recibidos = pedidos.recibir_vencidos(db, pedido.fecha_estimada)
+    db.refresh(m), db.refresh(pedido)
+    linea = db.scalar(select(PedidoLinea).where(PedidoLinea.pedido_id == pedido.id))
+    assert [p.id for p in recibidos] == [pedido.id] and pedido.estado == "recibido"
+    assert m.existencia == 15 + linea.cantidad_pedida
+    aviso = db.scalar(select(Mensaje).where(Mensaje.pedido_id == pedido.id, Mensaje.tipo == "recibido"))
+    assert aviso is not None and "📦" in aviso.texto
