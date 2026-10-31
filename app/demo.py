@@ -19,7 +19,6 @@ from app.db import (
 from app.importacion import Opciones, aplicar, preparar
 
 ARCHIVO = Path(__file__).resolve().parent.parent / "datos" / "SALVAMED en orden.csv"
-PALABRA_PARA_BORRAR = "BORRAR"
 
 
 def cargar_demo(db: Session) -> dict:

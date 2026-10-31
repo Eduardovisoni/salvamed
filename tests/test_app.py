@@ -135,7 +135,7 @@ def test_plantillas_descargables(cliente):
         assert r.status_code == 200 and r.content[:2] == b"PK"
 
 
-def test_borrar_todos_los_datos_pide_la_palabra_y_conserva_configuracion_y_simulaciones(cliente, db):
+def test_borrar_todos_los_datos_conserva_configuracion_y_simulaciones(cliente, db):
     m = medicamento(db, proveedor_id=proveedor(db).id)
     db.commit()
     inventario.despachar(db, "Emergencia", [inventario.LineaPedida(m.id, 3)], "borrar-1", ahora())
@@ -144,11 +144,7 @@ def test_borrar_todos_los_datos_pide_la_palabra_y_conserva_configuracion_y_simul
     db.get(Configuracion, 1).costo_pedido = 50
     db.commit()
 
-    r = cliente.post("/configuracion/borrar", data={"palabra": "no"}, follow_redirects=False)
-    assert "borrado=no" in r.headers["location"]
-    assert db.scalar(select(func.count()).select_from(Medicamento)) == 2
-
-    r = cliente.post("/configuracion/borrar", data={"palabra": "borrar"}, follow_redirects=False)
+    r = cliente.post("/configuracion/borrar", follow_redirects=False)
     assert r.headers["location"].startswith("/medicamentos?mensaje=")
     db.expire_all()
     assert [x.nombre for x in db.scalars(select(Medicamento))] == ["De la simulación"]
