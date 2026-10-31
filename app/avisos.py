@@ -27,7 +27,32 @@ def _encabezado(corrida_id) -> str:
     return f"🧪 SALVAMED · SIMULACIÓN del sanatorio (corrida #{corrida_id}) — no es inventario real"
 
 
+def _plural(unidad: str, cantidad: int) -> str:
+    """«vial» → «viales», «frasco IV» → «frascos IV», «monodosis» igual."""
+    if cantidad == 1 or not unidad:
+        return unidad
+    primera, _, resto = unidad.partition(" ")
+    if primera[-1] in "sx":
+        plural = primera
+    elif primera[-1] in "aeiouáéó":
+        plural = primera + "s"
+    elif primera[-1] == "z":
+        plural = primera[:-1] + "ces"
+    else:
+        plural = primera + "es"
+    return f"{plural} {resto}".strip()
+
+
+def _dias(valor: float) -> str:
+    return f"{valor:g}" if float(valor).is_integer() else f"{valor:.1f}"
+
+
+def _lista_y(partes: list[str]) -> str:
+    return partes[0] if len(partes) == 1 else ", ".join(partes[:-1]) + " y " + partes[-1]
+
+
 def texto_reposicion(db: Session, pedido: Pedido, evaluaciones: dict | None = None) -> str:
+    """Aviso corto para compras: qué pedir, cuánto y por qué. El cálculo completo está en «Ver detalle»."""
     lineas = list(
         db.execute(
             select(PedidoLinea, Medicamento)
@@ -37,29 +62,60 @@ def texto_reposicion(db: Session, pedido: Pedido, evaluaciones: dict | None = No
         ).tuples()
     )
     proveedor = db.get(Proveedor, pedido.proveedor_id) if pedido.proveedor_id else None
-    partes = [_encabezado(pedido.corrida_id), f"⚠️ Reposición necesaria · Pedido #{pedido.id}", ""]
+    nombre_proveedor = proveedor.nombre if proveedor else "sin proveedor asignado"
+
+    def llego(linea) -> bool:
+        return linea.punto_reorden is not None and (linea.posicion_aviso or 0) <= punto_de_pedido(linea.punto_reorden)
+
+    llegaron = [(l, m) for l, m in lineas if llego(l)]
+    acompanan = [(l, m) for l, m in lineas if not llego(l)]
+    if pedido.origen == "manual":
+        llegaron, acompanan = lineas, []
+
+    if pedido.corrida_id is None:
+        partes = [f"🏥 SALVAMED · Pedido #{pedido.id} · {nombre_proveedor}"]
+    else:
+        partes = [f"🧪 SIMULACIÓN (corrida #{pedido.corrida_id}) · Pedido #{pedido.id} · {nombre_proveedor} · no es inventario real"]
+
+    def situacion(linea) -> str:
+        camino = (linea.posicion_aviso or 0) - (linea.existencia_aviso or 0)
+        texto = f"quedan {linea.existencia_aviso}" + (f" y vienen {camino} en camino" if camino > 0 else "")
+        return f"{texto}, se pide al llegar a {punto_de_pedido(linea.punto_reorden)}"
+
+    if pedido.origen == "manual":
+        partes.append("📝 Pedido hecho a mano desde SALVAMED.")
+    elif len(llegaron) == 1:
+        linea, m = llegaron[0]
+        partes.append(f"⚠️ {m.nombre_completo} llegó a su punto de reorden: {situacion(linea)}.")
+    elif llegaron:
+        partes.append("⚠️ Llegaron a su punto de reorden: " + _lista_y([f"{m.nombre_completo} ({situacion(l)})" for l, m in llegaron]) + ".")
+    else:
+        partes.append("⚠️ Reposición necesaria.")
+
+    partes += ["", "Pedir:"]
+    for linea, m in llegaron + acompanan:
+        partes.append(f"• {linea.cantidad_pedida} {_plural(m.unidad, linea.cantidad_pedida)} · {m.nombre_completo}")
+    if len(acompanan) == 1:
+        partes.append("El último va en el mismo envío porque está por llegar a su punto de reorden.")
+    elif acompanan:
+        partes.append(f"Los últimos {len(acompanan)} van en el mismo envío porque están por llegar a su punto de reorden.")
+
+    notas = []
+    controlados = [m.nombre_completo for _, m in lineas if es_controlado(m)]
+    if controlados:
+        notas.append(f"🔒 Controlado: {_lista_y(controlados)}. Pedir con el formulario F-SI-f-13 del Ministerio; el plazo incluye el trámite.")
     for linea, m in lineas:
-        partes += [
-            f"💊 {m.nombre_completo} ({m.unidad})",
-            f"Disponible: {linea.existencia_aviso} · En camino: {(linea.posicion_aviso or 0) - (linea.existencia_aviso or 0)}",
-            f"Pedir al llegar a: {punto_de_pedido(linea.punto_reorden) if linea.punto_reorden is not None else '—'} (R = {_n(linea.punto_reorden)} hacia arriba; inventario de seguridad {_n(linea.inventario_seguridad)})",
-            f"Consumo: {_n(linea.mu_d, 2)}/día, σ {_n(linea.sigma_d, 2)}",
-            f"Plazo de entrega L: {_n(linea.tiempo_entrega)} días → consumo previsto en L: {_n((linea.mu_d or 0) * (linea.tiempo_entrega or 0))}",
-            f"Cantidad sugerida: {linea.cantidad_pedida} (EOQ {_n(linea.cantidad_eoq, 2)}, ajustada a paquetes de {m.unidades_paquete})",
-        ]
-        if es_controlado(m):
-            partes.append("🔒 Controlado: pedir con el formulario F-SI-f-13 del Ministerio de Salud. El plazo incluye el trámite de autorización.")
-        if linea.punto_reorden is not None and (linea.posicion_aviso or 0) > punto_de_pedido(linea.punto_reorden):
-            partes.append("➕ Todavía no llega a R, pero ya está en «pedir pronto»: va en el mismo envío para pagarlo una sola vez.")
         if linea.mu_d and linea.tiempo_entrega and (linea.existencia_aviso or 0) / linea.mu_d < linea.tiempo_entrega:
-            partes.append(
-                f"⏱️ Alcanza para {(linea.existencia_aviso or 0) / linea.mu_d:.1f} días y el pedido tarda {_n(linea.tiempo_entrega)}: riesgo de agotarse antes."
-            )
-        partes.append("")
-    partes.append(f"Proveedor: {proveedor.nombre if proveedor else 'sin proveedor asignado'}")
-    partes.append(f"Aviso generado: {hora_local(pedido.creado):%d/%m/%Y %H:%M}")
+            alcanza = (linea.existencia_aviso or 0) / linea.mu_d
+            notas.append(f"⏱️ {m.nombre_completo}: alcanza para {alcanza:.1f} días y el pedido tarda {_dias(linea.tiempo_entrega)}.")
+    if notas:
+        partes += [""] + notas
+
+    plazos = [linea.tiempo_entrega for linea, _ in lineas if linea.tiempo_entrega]
     partes.append("")
-    partes.append("Pulse «Pedido realizado» cuando haya hecho la compra por su canal habitual. Este botón no compra ni paga nada.")
+    if plazos:
+        partes.append(f"Llega en unos {_dias(max(plazos))} días.")
+    partes.append("Pulse «Pedido realizado» cuando haya hecho la compra. El botón no compra ni paga nada.")
     return "\n".join(partes)
 
 
