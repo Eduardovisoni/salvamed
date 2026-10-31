@@ -91,3 +91,20 @@ def test_filas_con_error_se_marcan(db):
 def test_plantilla_vacia_trae_las_hojas(db):
     hojas, _ = importacion.leer_archivo("p.xlsx", plantilla.plantilla())
     assert [(h.nombre, h.tipo) for h in hojas] == [("Léeme", "ignorar"), ("Configuración", "configuracion")]
+
+
+def test_mismo_codigo_en_otro_archivo_no_mezcla_medicamentos(db):
+    """El Excel de ejemplo y la demostración usan MED-001… para medicamentos distintos: se crean aparte."""
+    excel = (Path(__file__).resolve().parent.parent / "datos" / "ejemplo_migracion_desde_excel.xlsx").read_bytes()
+    importacion.aplicar(db, importacion.preparar(db, "ejemplo.xlsx", excel, importacion.Opciones()))
+    omeprazol = db.scalar(select(Medicamento).where(Medicamento.nombre == "Omeprazol"))
+    assert omeprazol.sku == "MED-001"
+
+    demo = importacion.preparar(db, "demo.csv", CSV, importacion.Opciones())
+    actualizados = {f["datos"]["nombre"] for f in demo.datos["vista"]["catalogo"] if f["accion"] == "actualizar"}
+    assert actualizados == {"Furosemida", "Metronidazol"}  # mismo nombre y presentación en los dos archivos
+    importacion.aplicar(db, demo)
+    db.expire_all()
+    assert _contar(db, Medicamento) == 40
+    assert db.get(Medicamento, omeprazol.id).nombre == "Omeprazol"
+    assert _contar(db, Medicamento, Medicamento.nombre == "Ácido tranexámico") == 1

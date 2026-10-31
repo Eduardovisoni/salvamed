@@ -116,6 +116,20 @@ def cargar_demo(tareas_fondo: BackgroundTasks, db: Session = Depends(sesion)):
     return RedirectResponse(f"/medicamentos?mensaje={texto}", status_code=303)
 
 
+@rutas.post("/configuracion/borrar")
+async def borrar_datos(request: Request, db: Session = Depends(sesion)):
+    from app.demo import PALABRA_PARA_BORRAR, borrar_datos as borrar
+
+    if str((await request.form()).get("palabra", "")).strip().upper() != PALABRA_PARA_BORRAR:
+        return RedirectResponse("/configuracion?borrado=no#borrar", status_code=303)
+    cuenta = borrar(db)
+    texto = (
+        f"Datos borrados: {cuenta['medicamentos']} medicamentos, {cuenta['despachos']} despachos y "
+        f"{cuenta['pedidos']} pedidos. La configuración se conservó."
+    )
+    return RedirectResponse(f"/medicamentos?mensaje={texto}", status_code=303)
+
+
 # ---------------------------------------------------------------- Importación
 
 

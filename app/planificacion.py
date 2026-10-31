@@ -273,7 +273,7 @@ def _evaluar(m, consumo, proveedor, cfg, abiertas, hoy, momento) -> Evaluacion:
     if plan is None:
         estado = Estado("pendiente", ETIQUETAS["pendiente"], None, None)
     elif plan.D == 0:
-        estado = Estado("bien", "Sin ventas en la ventana", None, None)
+        estado = Estado("bien", "Sin despachos en la ventana", None, None)
     else:
         estado = estado_de(posicion, consumo.mu_d, plan, cfg.dias_aviso)
 

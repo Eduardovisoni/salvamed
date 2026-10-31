@@ -194,7 +194,7 @@
         li.querySelector("strong").textContent = m.nombre;
         li.querySelector(".sutil").textContent = m.presentacion;
         li.querySelector(".selector__hay").textContent =
-          (enLista(m.id) ? "En la lista · " : "") + (m.existencia <= 0 ? "Agotado" : "Hay " + m.existencia);
+          (enLista(m.id) ? "En la lista · " : "") + (m.existencia <= 0 ? "Agotado" : "Hay " + m.existencia + " " + m.unidad);
         li.addEventListener("click", function () { elegir(m); });
         li.addEventListener("mousemove", function () { if (activa !== i) { activa = i; marcar(); } });
         opciones.appendChild(li);
@@ -259,7 +259,7 @@
         tr.querySelector(".sutil").textContent = m.presentacion;
         tr.querySelector(".aviso-linea").textContent = excede ? "Solo hay " + m.existencia + " " + m.unidad : "";
         tr.querySelector("input[type=hidden]").value = m.id;
-        tr.children[1].textContent = m.existencia;
+        tr.children[1].textContent = m.existencia + " " + m.unidad;
         var entrada = tr.querySelector(".carrito__cantidad");
         entrada.value = linea.cantidad;
         entrada.addEventListener("input", function () { linea.cantidad = entrada.value; revisar(); });

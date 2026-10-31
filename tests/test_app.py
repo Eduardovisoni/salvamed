@@ -1,10 +1,12 @@
 import re
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 
-from app.db import Medicamento, Movimiento, Pedido
-from tests.ayudas import medicamento
+from app import inventario, pedidos
+from app.db import ConsumoHistorico, Configuracion, Despacho, Medicamento, Movimiento, Pedido, Proveedor, ahora
+from app.planificacion import evaluar
+from tests.ayudas import medicamento, proveedor
 
 
 def _token(html: str) -> str:
@@ -93,11 +95,12 @@ def test_los_servicios_se_configuran(cliente, db):
     assert cliente.post("/configuracion", data=formulario).status_code == 400
 
 
-def test_detalle_muestra_el_plan_y_la_fuente(cliente, db):
+def test_detalle_muestra_cuando_pedir_sin_las_formulas(cliente, db):
     m = medicamento(db)
     html = cliente.get(f"/medicamentos/{m.id}").text
-    for texto in ("Plan de inventario (clase 12)", "Q = √(2DS / H)", "tasa anual", "no entra en el promedio", "h) Política del inventario"):
-        assert texto in html
+    assert "Pedir en" in html and "punto de reorden" in html
+    for texto in ("Cálculo del inventario", "clase 12", "Q = √(2DS / H)"):
+        assert texto not in html
 
 
 def test_con_clave_hay_que_entrar(cliente, monkeypatch):
@@ -130,3 +133,25 @@ def test_plantillas_descargables(cliente):
     for nombre in ("plantilla_salvamed.xlsx", "ejemplo_simulado.xlsx"):
         r = cliente.get(f"/plantillas/{nombre}")
         assert r.status_code == 200 and r.content[:2] == b"PK"
+
+
+def test_borrar_todos_los_datos_pide_la_palabra_y_conserva_configuracion_y_simulaciones(cliente, db):
+    m = medicamento(db, proveedor_id=proveedor(db).id)
+    db.commit()
+    inventario.despachar(db, "Emergencia", [inventario.LineaPedida(m.id, 3)], "borrar-1", ahora())
+    pedidos.crear_pedido(db, evaluar(db, m, ahora()), ahora(), origen="manual")
+    db.add(Medicamento(nombre="De la simulación", unidad="vial", corrida_id=7))
+    db.get(Configuracion, 1).costo_pedido = 50
+    db.commit()
+
+    r = cliente.post("/configuracion/borrar", data={"palabra": "no"}, follow_redirects=False)
+    assert "borrado=no" in r.headers["location"]
+    assert db.scalar(select(func.count()).select_from(Medicamento)) == 2
+
+    r = cliente.post("/configuracion/borrar", data={"palabra": "borrar"}, follow_redirects=False)
+    assert r.headers["location"].startswith("/medicamentos?mensaje=")
+    db.expire_all()
+    assert [x.nombre for x in db.scalars(select(Medicamento))] == ["De la simulación"]
+    for modelo in (Despacho, Pedido, Movimiento, Proveedor, ConsumoHistorico):
+        assert db.scalar(select(func.count()).select_from(modelo)) == 0
+    assert db.get(Configuracion, 1).costo_pedido == 50

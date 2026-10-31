@@ -492,7 +492,7 @@ select.campo__entrada { appearance: auto; }
 .plegable[open] > summary { margin-bottom: 16px; }
 .plegable__nota { color: var(--tenue); font-weight: 400; font-size: 0.8rem; margin-right: auto; }
 
-.medidor { margin: 22px 0 6px; }
+.medidor { margin: 30px 0 6px; }
 .medidor__barra {
   position: relative;
   height: 8px;
@@ -514,12 +514,26 @@ select.campo__entrada { appearance: auto; }
   white-space: nowrap;
 }
 .medidor__camino { position: absolute; top: 0; height: 100%; background: repeating-linear-gradient(45deg, #93c5fd, #93c5fd 4px, #dbeafe 4px, #dbeafe 8px); border-radius: 0 999px 999px 0; }
+.medidor__actual { position: absolute; top: 0; width: 0; }
+.medidor__actual span {
+  position: absolute;
+  left: 0;
+  top: 17px;
+  transform: translateX(-50%);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--texto);
+  white-space: nowrap;
+}
+.medidor__actual--arriba span { top: auto; bottom: 14px; }
+.medidor__actual--fin span, .medidor__marca--fin span { transform: translateX(-100%); }
 
-.cifras { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin: 34px 0 0; border-top: 1px solid var(--borde); }
+.cifras { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; margin: 34px 0 0; border-top: 1px solid var(--borde); }
 .cifras div { padding: 14px 0 0; }
 .cifras div + div { padding-left: 20px; border-left: 1px solid var(--borde); }
 .cifras dt { color: var(--sutil); font-size: 0.8rem; }
 .cifras dd { margin: 2px 0 0; font-size: 1.35rem; font-weight: 600; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.cifras__unidad { font-size: 0.85rem; font-weight: 500; color: var(--sutil); letter-spacing: 0; }
 
 .datos { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
 .datos th, .datos td { padding: 8px 0; border-bottom: 1px solid var(--borde); }
@@ -974,7 +988,7 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: 0.85em; backgr
   .tabla-envoltura--plana .tabla th:first-child, .tabla-envoltura--plana .tabla td:first-child { padding-left: 16px; }
   .cifras { grid-template-columns: 1fr 1fr; }
   .cifras div + div { padding-left: 0; border-left: 0; }
-  .cifras div:nth-child(2) { padding-left: 16px; border-left: 1px solid var(--borde); }
+  .cifras div:nth-child(even) { padding-left: 16px; border-left: 1px solid var(--borde); }
   .flotante { left: 16px; right: 16px; bottom: 16px; min-width: 0; max-width: none; }
 }
 

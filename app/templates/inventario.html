@@ -42,6 +42,8 @@
         <th>Medicamento</th>
         <th class="num">Existencia</th>
         <th class="num">En camino</th>
+        <th class="num">Pedir al llegar a</th>
+        <th class="num">Cuánto pedir</th>
         <th>Estado</th>
         <th><span class="oculto">Acciones</span></th>
       </tr>
@@ -55,6 +57,13 @@
         </td>
         <td class="num">{{ e.existencia | entero }}</td>
         <td class="num">{% if e.en_camino %}<span class="en-camino">+{{ e.en_camino | entero }}</span>{% else %}<span class="sin-dato">—</span>{% endif %}</td>
+        {% if e.plan and e.plan.D > 0 %}
+        <td class="num">{{ e.plan.R_pedido }}</td>
+        <td class="num">{{ e.sugerida | entero }}</td>
+        {% else %}
+        <td class="num"><span class="sin-dato">—</span></td>
+        <td class="num"><span class="sin-dato">—</span></td>
+        {% endif %}
         <td>
           <span class="estado estado--{{ e.estado.clave }}">{{ e.estado.etiqueta }}</span>
           {% if e.pedido_abierto %}

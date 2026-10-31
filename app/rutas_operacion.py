@@ -27,7 +27,7 @@ from app.db import (
 )
 from app.formulario import GRUPOS_MEDICAMENTO, campos, leer, valores_de
 from app.inventario import ErrorDeOperacion, LineaPedida
-from app.planificacion import configuracion, consumo_por_servicio, es_controlado, evaluar, evaluar_varios
+from app.planificacion import configuracion, es_controlado, evaluar, evaluar_varios
 from app.web import medicamento_de, entero, pagina
 
 rutas = APIRouter()
@@ -330,9 +330,7 @@ def detalle(request: Request, medicamento_id: int, guardado: int = 0, db: Sessio
             "m": m,
             "proveedor": db.get(Proveedor, m.proveedor_id) if m.proveedor_id else None,
             "grafica": _grafica_existencias(db, m, momento),
-            "consumo_grafica": graficas.consumo_diario(e.consumo, e.hoy),
             "historial": inventario.historial(db, m),
-            "por_servicio": consumo_por_servicio(db, m, momento),
             "pedidos_med": lineas,
             "guardado": guardado == 1,
             "cfg": configuracion(db),

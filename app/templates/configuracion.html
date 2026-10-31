@@ -100,6 +100,18 @@
     <button class="boton {% if catalogo_vacio %}boton--primario{% endif %}" type="submit">Cargar catálogo</button>
   </form>
 </section>
+
+<section class="panel panel--fila" id="borrar">
+  <div>
+    <h2>Borrar todos los datos</h2>
+    <p class="sutil">Para empezar de cero antes de cargar la demostración o importar otro Excel. Borra medicamentos, existencias, despachos, pedidos, proveedores, historial importado y avisos. No borra esta configuración ni las simulaciones. No se puede deshacer.</p>
+    {% if request.query_params.get("borrado") == "no" %}<p class="campo__error" role="alert">No se borró nada: escribe BORRAR para confirmar.</p>{% endif %}
+  </div>
+  <form method="post" action="/configuracion/borrar" class="en-linea" data-confirmar="Se borrarán TODOS los medicamentos, despachos, pedidos y proveedores. No se puede deshacer. ¿Continuar?" data-una-vez>
+    <input class="campo__entrada" name="palabra" autocomplete="off" placeholder="Escribe BORRAR" aria-label="Escribe BORRAR para confirmar" required>
+    <button class="boton boton--peligro" type="submit">Borrar todo</button>
+  </form>
+</section>
 {% endblock %}
 
 {% block scripts %}

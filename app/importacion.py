@@ -193,8 +193,10 @@ def _existente(db: Session, nombre: str, presentacion: str, sku: str = "") -> Me
         if clave(m.nombre) == clave(nombre) and clave(m.presentacion) == clave(presentacion):
             return m
     if sku:
+        # El código solo reconoce un cambio de presentación del mismo medicamento: dos archivos distintos
+        # pueden usar el mismo código (MED-001) para medicamentos distintos, y no deben mezclarse.
         for m in candidatos:
-            if m.sku and clave(m.sku) == clave(sku):
+            if m.sku and clave(m.sku) == clave(sku) and clave(m.nombre) == clave(nombre):
                 return m
     return None
 
@@ -231,6 +233,7 @@ def _analizar_catalogo(db, hoja: Hoja, opciones: Opciones, archivo: str, resulta
         resultado["ignoradas"].append({"hoja": hoja.nombre, "columna": e, "motivo": motivo})
     semanas = semanas_de(hoja) if opciones.importar_semanas else []
     vistos = set()
+    existentes_usados = set()
     for numero_fila, fila in enumerate(hoja.filas, start=2):
         procedencia = f"{archivo} · {hoja.nombre} · fila {numero_fila}"
         datos, errores = {}, []
@@ -271,6 +274,12 @@ def _analizar_catalogo(db, hoja: Hoja, opciones: Opciones, archivo: str, resulta
             if valor is not None:
                 semanales.append(valor)
         existente = None if errores else _existente(db, datos["nombre"], datos.get("presentacion", ""), datos.get("sku", ""))
+        if existente is not None:
+            if existente.id in existentes_usados:
+                errores.append(f"Otra fila del archivo ya actualiza «{existente.nombre_completo}»")
+                existente = None
+            else:
+                existentes_usados.add(existente.id)
         accion = "error" if errores else ("actualizar" if existente else "crear")
         aviso = ""
         if existente and datos.get("existencia") is not None and datos["existencia"] != existente.existencia:
