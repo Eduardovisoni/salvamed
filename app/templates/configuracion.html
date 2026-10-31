@@ -91,34 +91,39 @@
   </div>
 </section>
 
-<section class="panel panel--fila" id="datos">
-  <div>
-    <h2>Datos de demostración</h2>
-    <p class="sutil">Carga 30 medicamentos simulados. Si uno ya existe, no se duplica.</p>
-  </div>
-  <form method="post" action="/configuracion/demo" data-confirmar="Se agregará el catálogo de demostración (30 medicamentos simulados) a la operación. ¿Continuar?" data-una-vez>
-    <button class="boton {% if catalogo_vacio %}boton--primario{% endif %}" type="submit">Cargar catálogo</button>
-  </form>
-</section>
+<section class="peligro" id="datos" aria-labelledby="peligro-titulo">
+  <h2 id="peligro-titulo" class="peligro__titulo">Zona de peligro</h2>
+  <p class="sutil peligro__intro">Acciones que cambian los datos de la operación de golpe. Úsalas solo para la demostración.</p>
 
-<section class="panel panel--fila" id="historial">
-  <div>
-    <h2>Simular historial</h2>
-    <p class="sutil">Inventa los últimos 30 días de despachos y un pedido recibido para los medicamentos que todavía no tienen movimientos, así las gráficas y el consumo estimado se ven llenos desde hoy. La existencia actual no cambia. Los que ya tienen historial no se tocan.</p>
+  <div class="peligro__fila">
+    <div>
+      <h3>Cargar catálogo de demostración</h3>
+      <p class="sutil">Agrega 30 medicamentos simulados. Si uno ya existe, no se duplica.</p>
+    </div>
+    <form method="post" action="/configuracion/demo" data-confirmar="Se agregará el catálogo de demostración (30 medicamentos simulados) a la operación. ¿Continuar?" data-una-vez>
+      <button class="boton boton--peligro" type="submit">Cargar catálogo</button>
+    </form>
   </div>
-  <form method="post" action="/configuracion/historial" data-confirmar="Se generarán 30 días de movimientos simulados para los medicamentos sin historial. ¿Continuar?" data-una-vez>
-    <button class="boton" type="submit" {% if catalogo_vacio %}disabled{% endif %}>Simular historial</button>
-  </form>
-</section>
 
-<section class="panel panel--fila" id="borrar">
-  <div>
-    <h2>Borrar todos los datos</h2>
-    <p class="sutil">Para empezar de cero antes de cargar la demostración o importar otro Excel. Borra medicamentos, existencias, despachos, pedidos, proveedores, historial importado y avisos. No borra esta configuración ni las simulaciones. No se puede deshacer.</p>
+  <div class="peligro__fila" id="historial">
+    <div>
+      <h3>Simular historial</h3>
+      <p class="sutil">Inventa los últimos 30 días de despachos y un pedido recibido para los medicamentos que todavía no tienen movimientos, así las gráficas y el consumo estimado se ven llenos desde hoy. La existencia actual no cambia. Los que ya tienen historial no se tocan.</p>
+    </div>
+    <form method="post" action="/configuracion/historial" data-confirmar="Se generarán 30 días de movimientos simulados para los medicamentos sin historial. ¿Continuar?" data-una-vez>
+      <button class="boton boton--peligro" type="submit" {% if catalogo_vacio %}disabled{% endif %}>Simular historial</button>
+    </form>
   </div>
-  <form method="post" action="/configuracion/borrar" class="en-linea" data-confirmar="Se borrarán TODOS los medicamentos, despachos, pedidos y proveedores. No se puede deshacer. ¿Continuar?" data-una-vez>
-    <button class="boton boton--peligro" type="submit">Borrar todo</button>
-  </form>
+
+  <div class="peligro__fila" id="borrar">
+    <div>
+      <h3>Borrar todos los datos</h3>
+      <p class="sutil">Para empezar de cero antes de cargar la demostración o importar otro Excel. Borra medicamentos, existencias, despachos, pedidos, proveedores, historial importado y avisos. No borra esta configuración ni las simulaciones. No se puede deshacer.</p>
+    </div>
+    <form method="post" action="/configuracion/borrar" data-confirmar="Se borrarán TODOS los medicamentos, despachos, pedidos y proveedores. No se puede deshacer. ¿Continuar?" data-una-vez>
+      <button class="boton boton--peligro boton--peligro-lleno" type="submit">Borrar todo</button>
+    </form>
+  </div>
 </section>
 {% endblock %}
 

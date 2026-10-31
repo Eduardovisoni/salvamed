@@ -1180,3 +1180,16 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: 0.85em; backgr
 @media (prefers-reduced-motion: reduce) {
   .actualizar svg, .actualizar--cargando svg, .cambiado, .pedido-tarjeta.cambiado { animation: none; transition: none; transform: none; }
 }
+
+/* Zona de peligro (Configuración) */
+.peligro { background: var(--superficie); border: 1px solid var(--pedir-borde); border-radius: var(--radio); padding: 18px 20px 6px; margin-bottom: 12px; }
+.peligro__titulo { color: var(--pedir); margin: 0 0 2px; }
+.peligro__intro { margin: 0 0 6px; }
+.peligro__fila { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding: 14px 0; border-top: 1px solid var(--pedir-borde); }
+.peligro__fila h3 { margin: 0 0 2px; font-size: 0.95rem; }
+.peligro__fila p { margin: 0; }
+.peligro__fila form { margin: 0; }
+.peligro .boton--peligro { border-color: var(--pedir-borde); background: var(--pedir-fondo); }
+.peligro .boton--peligro:hover { background: var(--pedir); color: #fff; border-color: var(--pedir); }
+.peligro .boton--peligro-lleno { background: var(--pedir); color: #fff; border-color: var(--pedir); }
+.peligro .boton--peligro-lleno:hover { background: #a52d23; border-color: #a52d23; }
