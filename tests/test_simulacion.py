@@ -1,3 +1,6 @@
+import math
+
+import pytest
 from sqlalchemy import func, select
 
 from app import dinero, pedidos, simulacion
@@ -47,6 +50,17 @@ def test_arranca_sin_historia_y_sin_plan(db):
     estado = simulacion.estado(db, c)
     assert all(t["R"] is None for t in estado["tarjetas"])
     assert estado["reloj"]["pausa_manual"] is True
+
+
+def test_la_carta_trae_los_datos_para_repetir_el_calculo_a_mano(db):
+    c = simulacion.crear_corrida(db, "base")
+    _hasta_el_aviso(db, c)
+    t = next(t for t in simulacion.estado(db, c)["tarjetas"] if t["estado"] == "pedir")
+    assert t["H"] == pytest.approx(t["precio"] * t["tasa"])
+    assert t["S"] == pytest.approx(t["envio"] / t["por_envio"])
+    assert t["D"] == pytest.approx(t["mu"] * t["A"])
+    assert t["Q"] == pytest.approx(math.sqrt(2 * t["D"] * t["S"] / t["H"]))
+    assert t["R"] == pytest.approx(t["mu"] * t["L"] + t["Z"] * t["sigma"] * math.sqrt(t["L"]))
 
 
 def test_pausa_confirmacion_reanudacion_y_recepcion_tras_l(db):

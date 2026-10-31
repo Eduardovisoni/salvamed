@@ -904,6 +904,8 @@ def estado(db: Session, c: Corrida, desde_evento: int = 0, seleccionado: int | N
     tarjetas = []
     for m in meds:
         e = evaluaciones[m.id]
+        proveedor = db.get(Proveedor, m.proveedor_id) if m.proveedor_id else None
+        h = e.parametros["H"].valor
         tarjetas.append(
             {
                 "id": m.id,
@@ -927,6 +929,22 @@ def estado(db: Session, c: Corrida, desde_evento: int = 0, seleccionado: int | N
                 "pendientes": e.pendientes,
                 "camino": abiertos.get(m.id),
                 "indice": len(tarjetas),
+                # Datos de la carta grande: todo lo que hace falta para repetir el cálculo a mano.
+                "precio": m.costo_compra,
+                "paquete": m.unidades_paquete,
+                "proveedor": proveedor.nombre if proveedor else None,
+                "envio": proveedor.costo_envio if proveedor else None,
+                "por_envio": proveedor.articulos_por_envio if proveedor else None,
+                "S": e.parametros["S"].valor,
+                "H": h,
+                "tasa": h / m.costo_compra if h and m.costo_compra else None,
+                "L": e.parametros["L"].valor,
+                "p": e.parametros["p"].valor,
+                "A": e.parametros["A"].valor,
+                "Z": e.plan.Z if e.plan else None,
+                "sigma_L": e.plan.sigma_L if e.plan else None,
+                "D": e.plan.D if e.plan else None,
+                "dias_para_reorden": e.estado.dias_para_reorden,
             }
         )
     productos = ESCENARIOS[c.escenario].productos
