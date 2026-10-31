@@ -102,7 +102,7 @@ GRUPOS_CONFIGURACION = (
             Campo("tasa_mantenimiento", "Tasa anual de mantenimiento (%)", tipo="porcentaje", obligatorio=True, minimo=0, minimo_incluido=False, maximo=500,
                   ayuda="Supuesto académico: H = costo de compra × tasa. No es un estándar ni un dato medido."),
             Campo("costo_pedido", "Costo por pedido (Q)", simbolo="S", obligatorio=True, minimo=0, minimo_incluido=False,
-                  ayuda="Escenario base: Q35, solo el envío."),
+                  ayuda="Escenario base: Q150 por pedido: unos Q100 de trabajo interno (preparar, recibir, revisar y registrar) y unos Q50 de flete."),
             Campo("tiempo_entrega", "Plazo de entrega (días)", simbolo="L", obligatorio=True, minimo=0, minimo_incluido=False,
                   ayuda="Escenario base: 3 días, constante."),
         ),

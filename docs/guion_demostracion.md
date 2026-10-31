@@ -6,7 +6,7 @@ Antes de exponer:
   Sin Telegram, el mismo flujo funciona con el botón «Responder como encargado desde aquí».
 - Ten Telegram abierto en el teléfono del expositor que hará de encargado de compras.
 - En **Configuración** revisa el escenario base: 365 días (el sanatorio opera 24 horas), p = 95 %, tasa 25 %,
-  S = Q35, L = 3 y la lista de servicios.
+  S = Q150 (trabajo interno más flete), L = 3 y la lista de servicios.
 
 ## 1. El problema (1 min)
 

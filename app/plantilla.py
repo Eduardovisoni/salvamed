@@ -35,7 +35,7 @@ CONFIGURACION = (
     ("dias_operacion_anio", 365, "El sanatorio opera 24 horas todos los días (TuSalud y Facebook)."),
     ("nivel_servicio", 95, "Probabilidad de no agotarse durante el plazo de entrega (%)."),
     ("tasa_mantenimiento", 25, "Supuesto académico (% anual): H = costo de compra × tasa. No es un dato medido."),
-    ("costo_pedido", 35, "S en quetzales. Escenario base: solo el envío."),
+    ("costo_pedido", 150, "S en quetzales. Escenario base: unos Q100 de trabajo interno y unos Q50 de flete."),
     ("tiempo_entrega", 3, "L en días. Escenario base: 3 días, constante."),
 )
 

@@ -22,13 +22,13 @@ sirven para la operación y para la simulación.
 | σD | Desviación estándar muestral del consumo diario | Desviación de esos mismos días |
 | A | Días de operación por año | 365: el sanatorio opera todos los días (fuentes arriba) |
 | D | Demanda anual estimada = μD · A | Calculada; supone que el consumo reciente es representativo del año |
-| S | Costo de gestionar un pedido (Q por pedido) | Escenario base: Q35, **solo el envío** (referencia aportada por el grupo, no verificada en el sanatorio) |
+| S | Costo de gestionar un pedido (Q por pedido) | Escenario base: **Q150**: unos Q100 de trabajo interno (preparar y autorizar el pedido, recibirlo, revisar lotes y vencimientos, registrarlo y pagar la factura) y unos Q50 de flete por mensajería al interior. Supuesto del grupo, no verificado en el sanatorio. Si el sanatorio fuera a traerlo con su propio vehículo a la capital, sería cerca de Q600 |
 | H | Costo de mantener una unidad un año (Q por unidad al año) | H documentado, o costo de compra × tasa anual. Tasa académica por defecto: 25 % (supuesto editable) |
 | L | Plazo de entrega constante, en días | Del medicamento, del proveedor o general. Escenario base: 3 días |
 | p | Probabilidad de servicio objetivo | Configuración general (95 %) con excepción por medicamento (por ejemplo, 99 % para medicamentos críticos) |
 | Z | Valor de la normal estándar para p | Calculado |
 
-S y H **no salen del consumo**. S es lo que cuesta pedir (aquí, el envío); H es lo que cuesta tener una unidad guardada
+S y H **no salen del consumo**. S es lo que cuesta pedir (aquí, el trabajo interno más el flete); H es lo que cuesta tener una unidad guardada
 un año (capital inmovilizado, espacio, cadena de frío, vencimientos…). Por eso se configuran aparte.
 
 ## Medicamentos controlados
@@ -50,8 +50,8 @@ Configuración → Medicamentos controlados:
 
 Es la misma clase 12: un L más largo agranda la reserva (σL = σD · √L) y obliga a pedir antes (R = μD · L + IS); un p
 más alto sube Z; y un S más caro hace que la EOQ pida más cada vez, para hacer menos trámites al año. Ejemplo con
-4 ampollas por día, σD = 2 y Q25 por ampolla: como medicamento normal (L 3, p 95 %, S Q35) se pide al llegar a 18 y se
-piden 128; como controlado (L 18, p 99 %, S Q335) se pide al llegar a 92 y se piden 396. La cantidad no puede pasar la
+4 ampollas por día, σD = 2 y Q25 por ampolla: como medicamento normal (L 3, p 95 %, S Q150) se pide al llegar a 18 y se
+piden 265; como controlado (L 18, p 99 %, S Q450) se pide al llegar a 92 y se piden 459. La cantidad no puede pasar la
 cuota que autoriza el Ministerio; SALVAMED todavía no revisa ese tope.
 
 ## Fórmulas (incisos de la clase)

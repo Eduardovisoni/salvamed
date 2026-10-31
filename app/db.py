@@ -107,7 +107,7 @@ class Configuracion(Base):
     servicios: Mapped[str] = mapped_column(String(600), default=SERVICIOS_INICIALES)
     nivel_servicio: Mapped[float] = mapped_column(Float, default=95)
     tasa_mantenimiento: Mapped[float] = mapped_column(Float, default=0.25)
-    costo_pedido: Mapped[float] = mapped_column(Float, default=35)
+    costo_pedido: Mapped[float] = mapped_column(Float, default=150)
     tiempo_entrega: Mapped[float] = mapped_column(Float, default=3)
     ventana_dias: Mapped[int] = mapped_column(Integer, default=30)
     dias_aviso: Mapped[int] = mapped_column(Integer, default=7)

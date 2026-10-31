@@ -25,7 +25,7 @@ def test_el_plan_usa_la_configuracion_y_dice_de_donde_sale(db):
     assert e.consumo.mu_d == pytest.approx(6)
     assert e.parametros["H"].valor == pytest.approx(2.5)
     assert "tasa" in e.parametros["H"].fuente
-    assert e.parametros["S"].valor == 35 and e.parametros["L"].valor == 3
+    assert e.parametros["S"].valor == 150 and e.parametros["L"].valor == 3
     assert e.plan.D == pytest.approx(6 * 365)
     assert e.sugerida % 10 == 0 and e.sugerida >= e.plan.Q
 
