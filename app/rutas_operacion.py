@@ -5,7 +5,7 @@ from datetime import datetime, time, timedelta
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app import dinero, graficas, inventario, pedidos, tareas
@@ -19,6 +19,7 @@ from app.db import (
     PedidoLinea,
     PlanDiario,
     Despacho,
+    DespachoLinea,
     Proveedor,
     ahora,
     lista_de_servicios,
@@ -169,21 +170,17 @@ async def despachar(request: Request, tareas_fondo: BackgroundTasks, db: Session
     return RedirectResponse(f"/?hecho={hecho.id}", status_code=303)
 
 
-@rutas.get("/costos")
-def costos(request: Request, db: Session = Depends(sesion)):
-    momento = ahora()
-    inicio_hoy = datetime.combine(dia_local(momento), time(), GUATEMALA)
-    return pagina(
-        request,
-        "costos.html",
-        {
-            "pestana": "costos",
-            "hoy": dinero.resumen(db, None, inicio_hoy),
-            "mes": dinero.resumen(db, None, inicio_hoy - timedelta(days=29)),
-            "total": dinero.resumen(db, None),
-            "despachos": list(db.scalars(select(Despacho).where(Despacho.corrida_id.is_(None)).order_by(Despacho.id.desc()).limit(60))),
-        },
-    )
+@rutas.get("/despachos")
+def despachos(request: Request, db: Session = Depends(sesion)):
+    filas = db.execute(
+        select(Despacho, func.coalesce(func.sum(DespachoLinea.cantidad), 0))
+        .outerjoin(DespachoLinea, DespachoLinea.despacho_id == Despacho.id)
+        .where(Despacho.corrida_id.is_(None))
+        .group_by(Despacho.id)
+        .order_by(Despacho.id.desc())
+        .limit(60)
+    ).tuples()
+    return pagina(request, "despachos.html", {"pestana": "despachos", "despachos": list(filas)})
 
 
 def _despacho_de(db: Session, despacho_id: int) -> Despacho:
@@ -197,7 +194,7 @@ def _pagina_detalle_despacho(request, db, registro, error="", estado=200):
     return pagina(
         request,
         "despacho_detalle.html",
-        {"pestana": "costos", "despacho": registro, "lineas": inventario.lineas_de(db, registro), "error": error},
+        {"pestana": "despachos", "despacho": registro, "lineas": inventario.lineas_de(db, registro), "error": error},
         estado,
     )
 

@@ -27,7 +27,7 @@
         <a href="/" {% if pestana == "despacho" %}aria-current="page"{% endif %}>Despacho</a>
         <a href="/medicamentos" {% if pestana in ("inventario", "nuevo", "editar") %}aria-current="page"{% endif %}>Inventario</a>
         <a href="/pedidos" {% if pestana == "pedidos" %}aria-current="page"{% endif %}>Pedidos</a>
-        <a href="/costos" {% if pestana == "costos" %}aria-current="page"{% endif %}>Costos</a>
+        <a href="/despachos" {% if pestana == "despachos" %}aria-current="page"{% endif %}>Despachos</a>
         <a href="/simulacion" {% if pestana == "simulacion" %}aria-current="page"{% endif %}>Simulación</a>
         <a href="/configuracion" {% if pestana == "configuracion" %}aria-current="page"{% endif %}>Configuración</a>
         {% if a.clave %}

@@ -743,7 +743,7 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: 0.85em; backgr
 .aviso-linea { color: var(--pedir) !important; font-weight: 500; }
 .fila--error .carrito__cantidad { border-color: var(--pedir); }
 
-/* Costos */
+/* Despachos */
 .dinero { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .cuentas { margin: 0; display: grid; gap: 0; }
 .cuentas div { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--borde); padding: 8px 0; }

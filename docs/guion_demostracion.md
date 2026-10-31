@@ -53,7 +53,7 @@ Datos de la semilla 2026, escenario «Sanatorio en un mes normal»:
 
 - **Pedidos**: el pedido aparece «realizado · en camino» y luego recibido. Pedir, pagar y recibir son hechos distintos;
   solo recibir sube la existencia.
-- **Costos**: costo de lo consumido por servicio y compras. Los importes son simulados.
+- **Despachos**: lista de lo entregado a cada servicio; desde ahí se ve o se anula un despacho.
 - Opcional: corrida con la misma semilla y demora de gestión de 24 h para comparar faltantes y pedidos.
 - Recuerda los límites: datos simulados, demanda normal, plazo constante, y una probabilidad de servicio que no es una
   garantía.

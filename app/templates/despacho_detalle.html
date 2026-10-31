@@ -3,7 +3,7 @@
 {% block contenido %}
 <div class="titulo-pagina">
   <div>
-    <a class="volver" href="/costos">← Costos</a>
+    <a class="volver" href="/despachos">← Despachos</a>
     <h1>Despacho #{{ despacho.id }}
       {% if despacho.estado == "anulado" %}<span class="estado estado--pedir">Anulado</span>{% else %}<span class="estado estado--bien">Confirmado</span>{% endif %}
     </h1>

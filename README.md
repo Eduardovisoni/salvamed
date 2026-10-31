@@ -17,7 +17,7 @@ Una sola aplicación con dos modos separados:
 
 | Modo | Para qué | Datos |
 | --- | --- | --- |
-| **Operación** | Despacho a servicios (Emergencia, Encamamiento, …), inventario, pedidos, recepción y costos | Arranca vacía. Se carga con el formulario, la importación o el botón de demostración |
+| **Operación** | Despacho a servicios (Emergencia, Encamamiento, …), inventario, pedidos, recepción y despachos | Arranca vacía. Se carga con el formulario, la importación o el botón de demostración |
 | **Simulación** | El sanatorio en tiempo acelerado: los servicios piden a la farmacia las 24 horas y se ve el flujo completo con Telegram | Corridas con semilla; nunca tocan la operación |
 
 No se registran datos de pacientes, cobros ni facturación: un despacho dice qué servicio recibió qué medicamentos.

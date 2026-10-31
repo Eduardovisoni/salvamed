@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block titulo %}Despachos · SALVAMED{% endblock %}
+{% block contenido %}
+<div class="titulo-pagina">
+  <div>
+    <h1>Despachos</h1>
+    <p class="sutil">Lo entregado a cada servicio. Entra a uno para verlo o anularlo.</p>
+  </div>
+</div>
+
+<section class="panel">
+  {% if despachos %}
+  <div class="tabla-envoltura tabla-envoltura--plana">
+    <table class="tabla tabla--compacta">
+      <thead><tr><th>#</th><th>Fecha</th><th>Servicio</th><th class="num">Unidades</th><th>Estado</th></tr></thead>
+      <tbody>
+        {% for d, unidades in despachos %}
+        <tr>
+          <td><a class="enlace-fila" href="/despachos/{{ d.id }}">#{{ d.id }}</a></td>
+          <td class="num-izq">{{ d.fecha | fecha }}</td>
+          <td>{{ d.servicio }}</td>
+          <td class="num">{{ unidades }}</td>
+          <td>{% if d.estado == "anulado" %}<span class="estado estado--pedir">Anulado</span>{% else %}<span class="estado estado--bien">Confirmado</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="vacio">Todavía no hay despachos.</p>
+  {% endif %}
+</section>
+{% endblock %}

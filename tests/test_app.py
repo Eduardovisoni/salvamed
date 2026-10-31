@@ -17,7 +17,7 @@ def test_salud(cliente):
     assert cliente.get("/salud").json() == {"ok": True}
 
 
-@pytest.mark.parametrize("ruta", ["/", "/medicamentos", "/medicamentos/nuevo", "/pedidos", "/costos", "/configuracion", "/importar", "/simulacion"])
+@pytest.mark.parametrize("ruta", ["/", "/medicamentos", "/medicamentos/nuevo", "/pedidos", "/despachos", "/configuracion", "/importar", "/simulacion"])
 def test_las_pantallas_cargan_con_la_base_vacia(cliente, ruta):
     assert cliente.get(ruta).status_code == 200
 
@@ -58,7 +58,7 @@ def test_despachar_desde_la_pantalla_y_aviso_de_reposicion(cliente, db):
     assert cliente.post("/despachos", data=datos, follow_redirects=False).headers["location"] == r.headers["location"]
     db.refresh(m)
     assert m.existencia == 15
-    assert "Emergencia" in cliente.get("/costos").text
+    assert "Emergencia" in cliente.get("/despachos").text
     pedido = db.scalar(select(Pedido))
     assert pedido.estado == "pendiente"
     assert cliente.post(f"/pedidos/{pedido.id}/realizado", follow_redirects=False).status_code == 303
